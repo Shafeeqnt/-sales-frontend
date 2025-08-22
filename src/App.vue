@@ -7,9 +7,7 @@
       theme="dark"
       width="220"
     >
-      <div class="logo">
-        🛍️ RetailPOS
-      </div>
+      <div class="logo">🛍️ RetailPOS</div>
       <a-menu
         theme="dark"
         mode="inline"
@@ -37,7 +35,7 @@
         </div>
 
         <div class="header-right">
-          <a-badge :count="cart.items.length" offset="[10, 0]">
+          <a-badge :count="cart.totalItems" offset="[10, 0]">
             <ShoppingCartOutlined
               style="font-size: 22px; cursor: pointer; color: white"
               @click="goTo('/sales')"
@@ -55,9 +53,10 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue"
+import { ref, watch, onMounted } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { useCartStore } from "./stores/cartStore"
+import { supabase } from "./lib/supabase"
 
 // Ant Design Icons
 import {
@@ -86,6 +85,14 @@ watch(
 function goTo(path) {
   router.push(path)
 }
+
+// ✅ Load cart if user logged in
+onMounted(async () => {
+  const { data } = await supabase.auth.getUser()
+  if (data?.user) {
+    await cart.loadCart(data.user.id)
+  }
+})
 </script>
 
 <style scoped>

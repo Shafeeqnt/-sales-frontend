@@ -27,8 +27,8 @@
 
         <!-- Stock -->
         <template v-if="column.key === 'stock'">
-          <a-tag :color="record.stockQuantity > 10 ? 'green' : 'red'">
-            {{ record.stockQuantity > 0 ? record.stockQuantity + ' in stock' : 'Out of stock' }}
+          <a-tag :color="record.stockquantity > 10 ? 'green' : 'red'">
+            {{ record.stockquantity > 0 ? record.stockquantity + ' in stock' : 'Out of stock' }}
           </a-tag>
         </template>
 
@@ -108,6 +108,9 @@
           </a-col>
         </a-row>
 
+        <a-form-item label="Description">
+          <a-textarea v-model:value="form.description" rows="3" />
+        </a-form-item>
       </a-form>
     </a-modal>
   </div>

@@ -64,7 +64,7 @@
 
           <a-col :span="12" class="total-section">
             <div class="total-label">Total Amount</div>
-            <div class="total-value">₹ {{ cart.totalAmount.toFixed(2) }}</div>
+            <div class="total-value">₹ {{ (cart.totalAmount || 0).toFixed(2) }}</div>
           </a-col>
         </a-row>
 
@@ -85,11 +85,12 @@
 </template>
 
 <script setup>
-import { ref } from "vue"
-import { useCartStore } from "../stores/cartStore"
+import { ref } from "vue";
+import { useCartStore } from "../stores/cartStore";
+import { supabase } from "@/lib/supabase";
 
-const cart = useCartStore()
-const paymentMethod = ref("Cash")
+const cart = useCartStore();
+const paymentMethod = ref("Cash");
 
 const columns = [
   { title: "Product", dataIndex: ["product", "name"], key: "product" },
@@ -98,31 +99,85 @@ const columns = [
     title: "Unit Price",
     dataIndex: "unitPrice",
     key: "unitPrice",
-    customRender: ({ record }) => `₹ ${record.unitPrice.toFixed(2)}`
+    customRender: ({ record }) => `₹ ${(record.unitPrice || 0).toFixed(2)}`,
   },
   {
     title: "Total",
     key: "total",
-    customRender: ({ record }) => `₹ ${(record.quantity * record.unitPrice).toFixed(2)}`
+    customRender: ({ record }) =>
+      `₹ ${(record.quantity * (record.unitPrice || 0)).toFixed(2)}`,
   },
-  { title: "Action", key: "action" }
-]
+  { title: "Action", key: "action" },
+];
 
 async function checkout() {
-  const sale = {
-    saleDate: new Date(),
-    totalAmount: cart.totalAmount,
-    paymentMethod: paymentMethod.value,
-    items: cart.items.map(i => ({
-      productId: i.productId,
-      quantity: i.quantity,
-      unitPrice: i.unitPrice
-    }))
-  }
+  try {
+    console.log('Starting checkout process...');
+    console.log('Cart items:', cart.items);
+    console.log('Total amount:', cart.totalAmount);
+    console.log('Payment method:', paymentMethod.value);
 
-  console.log("Sale submitted (dummy):", sale)
-  cart.clearCart()
-  alert("🎉 Sale completed successfully! (dummy mode)")
+    // Step 1: insert into sales (using lowercase column names to match database)
+    const { data: sale, error: saleError } = await supabase
+      .from("sales")
+      .insert([
+        {
+          saledate: new Date(),
+          totalamount: cart.totalAmount,
+          paymentmethod: paymentMethod.value,
+        },
+      ])
+      .select()
+      .single();
+
+    if (saleError) {
+      console.error('Sale insert error:', saleError);
+      throw saleError;
+    }
+
+    console.log('Sale created:', sale);
+
+    // Step 2: insert into sale_items (using lowercase column names)
+    const saleItems = cart.items.map((i) => ({
+      sale_id: sale.id,
+      product_id: i.productId,
+      quantity: i.quantity,
+      unitprice: i.unitPrice,
+    }));
+
+    console.log('Sale items to insert:', saleItems);
+
+    const { error: itemsError } = await supabase
+      .from("sale_items")
+      .insert(saleItems);
+    
+    if (itemsError) {
+      console.error('Sale items insert error:', itemsError);
+      throw itemsError;
+    }
+
+    console.log('Sale items inserted successfully');
+
+    // Step 3: decrement stock (if you have this function)
+    for (let i of cart.items) {
+      try {
+        await supabase.rpc("decrement_stock", {
+          p_id: i.productId,
+          p_qty: i.quantity,
+        });
+        console.log(`Stock decremented for product ${i.productId}`);
+      } catch (stockError) {
+        console.warn('Stock decrement failed (function may not exist):', stockError);
+        // Continue even if stock decrement fails
+      }
+    }
+
+    cart.clearCart();
+    alert("✅ Sale completed successfully!");
+  } catch (err) {
+    console.error("❌ Checkout failed:", err);
+    alert(`Error during checkout: ${err.message}`);
+  }
 }
 </script>
 
