@@ -1,236 +1,347 @@
 <template>
   <div class="checkout-page">
     <!-- Page Title -->
-    <h1 class="title">🛒 Checkout</h1>
+    <div class="page-header">
+      <h1 class="title">🛒 Point of Sale</h1>
+      <a-button @click="$router.push('/products')" type="default">
+        ← Back to Products
+      </a-button>
+    </div>
 
     <!-- If no items in cart -->
-    <div v-if="cart.items.length === 0" class="empty-cart">
-      <a-empty description="Your cart is empty. Add products to begin checkout." />
+    <div v-if="cart.isEmpty" class="empty-cart">
+      <a-empty description="Your cart is empty. Add products to begin checkout.">
+        <a-button type="primary" @click="$router.push('/products')">
+          Browse Products
+        </a-button>
+      </a-empty>
     </div>
 
     <!-- If items exist -->
     <div v-else>
-      <!-- Cart Table -->
-      <a-card bordered class="cart-card">
-        <a-table
-          :data-source="cart.items"
-          :columns="columns"
-          row-key="productId"
-          bordered
-          size="middle"
-          :pagination="false"
-        >
-          <template #bodyCell="{ column, record }">
-            <!-- Quantity editable -->
-            <template v-if="column.key === 'quantity'">
-              <a-input-number
-                v-model:value="record.quantity"
-                :min="1"
-                style="width: 80px"
-              />
-            </template>
+      <a-row :gutter="24">
+        <!-- Left Column - Cart Items -->
+        <a-col :span="14">
+          <a-card title="Cart Items" bordered class="cart-card">
+            <a-table
+              :data-source="cart.items"
+              :columns="cartColumns"
+              row-key="id"
+              :pagination="false"
+              size="small"
+            >
+              <template #bodyCell="{ column, record }">
+                <!-- Product Info -->
+                <template v-if="column.key === 'product'">
+                  <div>
+                    <div style="font-weight: bold;">{{ record.product_name }}</div>
+                    <div style="font-size: 12px; color: #666;">
+                      Code: {{ record.product_code }}
+                    </div>
+                  </div>
+                </template>
 
-            <!-- Action -->
-            <template v-if="column.key === 'action'">
-              <a-popconfirm
-                title="Remove this item?"
-                ok-text="Yes"
-                cancel-text="No"
-                @confirm="cart.removeFromCart(record.productId)"
-              >
-                <a-button type="primary" danger size="small">Remove</a-button>
-              </a-popconfirm>
-            </template>
-          </template>
-        </a-table>
-      </a-card>
+                <!-- Quantity with controls -->
+                <template v-if="column.key === 'quantity'">
+                  <a-input-number
+                    :value="record.quantity"
+                    @change="(value) => cart.updateQuantity(record.id, value)"
+                    :min="1"
+                    :max="record.available_stock"
+                    size="small"
+                    style="width: 80px"
+                  />
+                </template>
 
-      <!-- Checkout Summary -->
-      <a-card class="summary-card" bordered>
-        <h2 class="summary-title">💳 Payment & Summary</h2>
+                <!-- Unit Price -->
+                <template v-if="column.key === 'unit_price'">
+                  ₹{{ Number(record.unit_price).toLocaleString() }}
+                </template>
 
-        <a-row gutter="16">
-          <a-col :span="12">
+                <!-- Total Price -->
+                <template v-if="column.key === 'total_price'">
+                  <strong>₹{{ Number(record.total_price).toLocaleString() }}</strong>
+                </template>
+
+                <!-- Action -->
+                <template v-if="column.key === 'action'">
+                  <a-popconfirm
+                    title="Remove this item?"
+                    ok-text="Yes"
+                    cancel-text="No"
+                    @confirm="cart.removeFromCart(record.id)"
+                  >
+                    <a-button type="text" danger size="small">
+                      <template #icon><DeleteOutlined /></template>
+                    </a-button>
+                  </a-popconfirm>
+                </template>
+              </template>
+            </a-table>
+          </a-card>
+        </a-col>
+
+        <!-- Right Column - Customer Info & Checkout -->
+        <a-col :span="10">
+          <!-- Customer Information -->
+          <a-card title="Customer Information" bordered class="customer-card">
             <a-form layout="vertical">
-              <a-form-item label="Payment Method">
-                <a-select v-model:value="paymentMethod" style="width: 100%">
-                  <a-select-option value="Cash">Cash</a-select-option>
-                  <a-select-option value="Card">Card</a-select-option>
-                  <a-select-option value="UPI">UPI</a-select-option>
-                </a-select>
+              <a-form-item label="Customer Name">
+                <a-input 
+                  v-model:value="customerInfo.name" 
+                  placeholder="Optional"
+                />
+              </a-form-item>
+              <a-form-item label="Phone Number">
+                <a-input 
+                  v-model:value="customerInfo.phone" 
+                  placeholder="Optional"
+                />
+              </a-form-item>
+              <a-form-item label="Email">
+                <a-input 
+                  v-model:value="customerInfo.email" 
+                  placeholder="Optional"
+                />
               </a-form-item>
             </a-form>
-          </a-col>
+          </a-card>
 
-          <a-col :span="12" class="total-section">
-            <div class="total-label">Total Amount</div>
-            <div class="total-value">₹ {{ (cart.totalAmount || 0).toFixed(2) }}</div>
-          </a-col>
-        </a-row>
+          <!-- Sale Details -->
+          <a-card title="Sale Details" bordered class="sale-card">
+            <a-form layout="vertical">
+              <a-row :gutter="16">
+                <a-col :span="12">
+                  <a-form-item label="Discount (₹)">
+                    <a-input-number
+                      v-model:value="saleInfo.discount_amount"
+                      :min="0"
+                      :max="cart.subtotal"
+                      style="width: 100%"
+                      :precision="2"
+                    />
+                  </a-form-item>
+                </a-col>
+                <a-col :span="12">
+                  <a-form-item label="Tax (₹)">
+                    <a-input-number
+                      v-model:value="saleInfo.tax_amount"
+                      :min="0"
+                      style="width: 100%"
+                      :precision="2"
+                    />
+                  </a-form-item>
+                </a-col>
+              </a-row>
+              
+              <a-form-item label="Payment Method">
+                <a-select v-model:value="saleInfo.payment_method" style="width: 100%">
+                  <a-select-option value="cash">Cash</a-select-option>
+                  <a-select-option value="card">Card</a-select-option>
+                  <a-select-option value="upi">UPI</a-select-option>
+                  <a-select-option value="bank_transfer">Bank Transfer</a-select-option>
+                </a-select>
+              </a-form-item>
 
-        <!-- Checkout Button -->
-        <div class="checkout-btn">
-          <a-button
-            type="primary"
-            size="large"
-            @click="checkout"
-            :disabled="cart.items.length === 0"
-          >
-            ✅ Complete Sale
-          </a-button>
-        </div>
-      </a-card>
+              <a-form-item label="Notes">
+                <a-textarea 
+                  v-model:value="saleInfo.notes" 
+                  rows="2" 
+                  placeholder="Optional notes"
+                />
+              </a-form-item>
+            </a-form>
+          </a-card>
+
+          <!-- Order Summary -->
+          <a-card title="Order Summary" bordered class="summary-card">
+            <div class="summary-row">
+              <span>Subtotal:</span>
+              <span>₹{{ cart.subtotal.toLocaleString() }}</span>
+            </div>
+            <div class="summary-row" v-if="saleInfo.discount_amount > 0">
+              <span>Discount:</span>
+              <span class="discount">-₹{{ Number(saleInfo.discount_amount).toLocaleString() }}</span>
+            </div>
+            <div class="summary-row" v-if="saleInfo.tax_amount > 0">
+              <span>Tax:</span>
+              <span>+₹{{ Number(saleInfo.tax_amount).toLocaleString() }}</span>
+            </div>
+            <a-divider style="margin: 12px 0" />
+            <div class="summary-row total-row">
+              <span>Total Amount:</span>
+              <span>₹{{ cart.totalAmount.toLocaleString() }}</span>
+            </div>
+
+            <!-- Checkout Button -->
+            <a-button
+              type="primary"
+              size="large"
+              block
+              @click="handleCheckout"
+              :loading="processing"
+              :disabled="cart.isEmpty"
+              style="margin-top: 16px"
+            >
+              💳 Complete Sale
+            </a-button>
+          </a-card>
+        </a-col>
+      </a-row>
     </div>
+
+    <!-- Success Modal -->
+    <a-modal
+      v-model:open="successModalVisible"
+      title="Sale Completed Successfully!"
+      :footer="null"
+      width="400px"
+    >
+      <div style="text-align: center; padding: 20px;">
+        <div style="font-size: 48px; color: #52c41a; margin-bottom: 16px;">
+          ✅
+        </div>
+        <h3>Sale #{{ completedSale.saleNumber }}</h3>
+        <p style="font-size: 18px; margin: 16px 0;">
+          Total: ₹{{ completedSale.finalAmount?.toLocaleString() }}
+        </p>
+        <a-space>
+          <a-button @click="successModalVisible = false">Close</a-button>
+          <a-button type="primary" @click="startNewSale">New Sale</a-button>
+        </a-space>
+      </div>
+    </a-modal>
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, reactive, watch } from "vue";
 import { useCartStore } from "../stores/cartStore";
-import { supabase } from "@/lib/supabase";
+import { useRouter } from "vue-router";
+import { DeleteOutlined } from '@ant-design/icons-vue';
 
 const cart = useCartStore();
-const paymentMethod = ref("Cash");
+const router = useRouter();
 
-const columns = [
-  { title: "Product", dataIndex: ["product", "name"], key: "product" },
-  { title: "Qty", key: "quantity" },
-  {
-    title: "Unit Price",
-    dataIndex: "unitPrice",
-    key: "unitPrice",
-    customRender: ({ record }) => `₹ ${(record.unitPrice || 0).toFixed(2)}`,
-  },
-  {
-    title: "Total",
-    key: "total",
-    customRender: ({ record }) =>
-      `₹ ${(record.quantity * (record.unitPrice || 0)).toFixed(2)}`,
-  },
-  { title: "Action", key: "action" },
+const processing = ref(false);
+const successModalVisible = ref(false);
+const completedSale = ref({});
+
+const customerInfo = reactive({
+  name: '',
+  phone: '',
+  email: ''
+});
+
+const saleInfo = reactive({
+  discount_amount: 0,
+  tax_amount: 0,
+  payment_method: 'cash',
+  notes: ''
+});
+
+const cartColumns = [
+  { title: "Product", key: "product", width: 200 },
+  { title: "Qty", key: "quantity", width: 80, align: 'center' },
+  { title: "Unit Price", key: "unit_price", width: 100, align: 'right' },
+  { title: "Total", key: "total_price", width: 120, align: 'right' },
+  { title: "", key: "action", width: 50, align: 'center' }
 ];
 
-async function checkout() {
-  try {
-    console.log('Starting checkout process...');
-    console.log('Cart items:', cart.items);
-    console.log('Total amount:', cart.totalAmount);
-    console.log('Payment method:', paymentMethod.value);
+// Watch for changes in customer and sale info
+watch(customerInfo, (newVal) => {
+  cart.setCustomerInfo(newVal);
+}, { deep: true });
 
-    // Step 1: insert into sales (using lowercase column names to match database)
-    const { data: sale, error: saleError } = await supabase
-      .from("sales")
-      .insert([
-        {
-          saledate: new Date(),
-          totalamount: cart.totalAmount,
-          paymentmethod: paymentMethod.value,
-        },
-      ])
-      .select()
-      .single();
+watch(saleInfo, (newVal) => {
+  cart.setSaleInfo(newVal);
+}, { deep: true });
 
-    if (saleError) {
-      console.error('Sale insert error:', saleError);
-      throw saleError;
-    }
-
-    console.log('Sale created:', sale);
-
-    // Step 2: insert into sale_items (using lowercase column names)
-    const saleItems = cart.items.map((i) => ({
-      sale_id: sale.id,
-      product_id: i.productId,
-      quantity: i.quantity,
-      unitprice: i.unitPrice,
-    }));
-
-    console.log('Sale items to insert:', saleItems);
-
-    const { error: itemsError } = await supabase
-      .from("sale_items")
-      .insert(saleItems);
-    
-    if (itemsError) {
-      console.error('Sale items insert error:', itemsError);
-      throw itemsError;
-    }
-
-    console.log('Sale items inserted successfully');
-
-    // Step 3: decrement stock (if you have this function)
-    for (let i of cart.items) {
-      try {
-        await supabase.rpc("decrement_stock", {
-          p_id: i.productId,
-          p_qty: i.quantity,
-        });
-        console.log(`Stock decremented for product ${i.productId}`);
-      } catch (stockError) {
-        console.warn('Stock decrement failed (function may not exist):', stockError);
-        // Continue even if stock decrement fails
-      }
-    }
-
-    cart.clearCart();
-    alert("✅ Sale completed successfully!");
-  } catch (err) {
-    console.error("❌ Checkout failed:", err);
-    alert(`Error during checkout: ${err.message}`);
+async function handleCheckout() {
+  if (cart.isEmpty) {
+    return;
   }
+
+  processing.value = true;
+  
+  try {
+    const result = await cart.completeSale();
+    
+    if (result.success) {
+      completedSale.value = result;
+      successModalVisible.value = true;
+    }
+  } catch (error) {
+    console.error('Checkout failed:', error);
+    
+    // Show user-friendly error message
+    let errorMessage = 'An error occurred during checkout.';
+    if (error.message.includes('stock')) {
+      errorMessage = 'Some items are out of stock. Please check your cart.';
+    } else if (error.message.includes('network')) {
+      errorMessage = 'Network error. Please check your connection.';
+    }
+    
+    alert(errorMessage);
+  } finally {
+    processing.value = false;
+  }
+}
+
+function startNewSale() {
+  successModalVisible.value = false;
+  router.push('/products');
 }
 </script>
 
 <style scoped>
 .checkout-page {
   padding: 20px;
+  background-color: #f5f5f5;
+  min-height: 100vh;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
 .title {
-  margin-bottom: 20px;
-  font-weight: bold;
-}
-
-.cart-card {
-  margin-bottom: 20px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
-
-.summary-card {
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  margin-top: 20px;
-}
-
-.summary-title {
-  font-size: 18px;
-  margin-bottom: 15px;
-}
-
-.total-section {
-  text-align: right;
-  padding: 10px 0;
-}
-
-.total-label {
-  font-size: 14px;
-  color: #888;
-}
-
-.total-value {
-  font-size: 24px;
+  margin: 0;
   font-weight: bold;
   color: #1890ff;
 }
 
-.checkout-btn {
-  text-align: right;
-  margin-top: 20px;
+.cart-card, .customer-card, .sale-card, .summary-card {
+  margin-bottom: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.total-row {
+  font-size: 18px;
+  font-weight: bold;
+  color: #1890ff;
+}
+
+.discount {
+  color: #f5222d;
 }
 
 .empty-cart {
-  padding: 50px;
+  padding: 100px 20px;
   text-align: center;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 </style>
