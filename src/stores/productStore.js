@@ -42,6 +42,7 @@ export const useProductStore = defineStore('product', {
             name: product.name,
             brand: product.brand || null,
             category: product.category || null,
+            supplier: product.supplier || null,
             size: product.size || null,
             color: product.color || null,
             stock_price: Number(product.stock_price) || null,
@@ -82,6 +83,7 @@ export const useProductStore = defineStore('product', {
             name: product.name,
             brand: product.brand || null,
             category: product.category || null,
+            supplier: product.supplier || null,
             size: product.size || null,
             color: product.color || null,
             stock_price: Number(product.stock_price) || null,
@@ -214,6 +216,7 @@ export const useProductStore = defineStore('product', {
         product.product_code.toLowerCase().includes(searchTerm) ||
         product.brand?.toLowerCase().includes(searchTerm) ||
         product.category?.toLowerCase().includes(searchTerm) ||
+        product.supplier?.toLowerCase().includes(searchTerm) ||
         product.barcode?.toLowerCase().includes(searchTerm)
       )
     },

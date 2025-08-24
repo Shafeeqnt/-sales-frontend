@@ -36,7 +36,7 @@
       bordered
       size="middle"
       :pagination="{ pageSize: 10, showSizeChanger: true }"
-      :scroll="{ x: 1300 }"
+      :scroll="{ x: 1400 }"
     >
       <!-- Custom Cells -->
       <template #bodyCell="{ column, record }">
@@ -53,11 +53,14 @@
           </div>
         </template>
 
-        <!-- Brand & Category -->
+        <!-- Brand, Category & Supplier -->
         <template v-if="column.key === 'brand_category'">
           <div>
             <a-tag v-if="record.brand" color="blue">{{ record.brand }}</a-tag>
             <a-tag v-if="record.category" color="green">{{ record.category }}</a-tag>
+            <div v-if="record.supplier" style="font-size: 11px; color: #666; margin-top: 2px;">
+              Supplier: {{ record.supplier }}
+            </div>
           </div>
         </template>
 
@@ -73,10 +76,10 @@
         <template v-if="column.key === 'pricing'">
           <div>
             <div style="font-size: 11px; color: #666;">
-              Stock: ₹{{ Number(record.stock_price || 0).toLocaleString() }}
+              MRP: ₹{{ Number(record.mrp || 0).toLocaleString() }}
             </div>
             <div style="font-size: 11px; color: #666;">
-              MRP: ₹{{ Number(record.mrp || 0).toLocaleString() }}
+              Stock: ₹{{ Number(record.stock_price || 0).toLocaleString() }}
             </div>
             <div v-if="record.discount_percentage > 0" style="font-size: 11px; color: #f5222d;">
               Discount: {{ record.discount_percentage }}%
@@ -164,18 +167,23 @@
         </a-row>
 
         <a-row :gutter="16">
-          <a-col :span="12">
+          <a-col :span="8">
             <a-form-item label="Brand" name="brand">
               <a-input v-model:value="form.brand" placeholder="Enter brand name" />
             </a-form-item>
           </a-col>
-          <a-col :span="12">
+          <a-col :span="8">
             <a-form-item label="Category" name="category">
               <a-select v-model:value="form.category" placeholder="Select category" allow-clear>
                 <a-select-option value="Footwear">Footwear</a-select-option>
                 <a-select-option value="Bags">Bags</a-select-option>
                 <a-select-option value="Other">Other</a-select-option>
               </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :span="8">
+            <a-form-item label="Supplier" name="supplier">
+              <a-input v-model:value="form.supplier" placeholder="Enter supplier name" />
             </a-form-item>
           </a-col>
         </a-row>
@@ -198,17 +206,6 @@
         
         <a-row :gutter="16">
           <a-col :span="8">
-            <a-form-item label="Stock Price (₹)" name="stock_price">
-              <a-input-number 
-                v-model:value="form.stock_price" 
-                style="width: 100%" 
-                :min="0"
-                :precision="2"
-                placeholder="0.00"
-              />
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
             <a-form-item label="MRP (₹)" name="mrp">
               <a-input-number 
                 v-model:value="form.mrp" 
@@ -217,6 +214,17 @@
                 :precision="2"
                 placeholder="0.00"
                 @change="calculateSellingPrice"
+              />
+            </a-form-item>
+          </a-col>
+          <a-col :span="8">
+            <a-form-item label="Stock Price (₹)" name="stock_price">
+              <a-input-number 
+                v-model:value="form.stock_price" 
+                style="width: 100%" 
+                :min="0"
+                :precision="2"
+                placeholder="0.00"
               />
             </a-form-item>
           </a-col>
@@ -327,7 +335,7 @@ const formRef = ref()
 
 const columns = [
   { title: "Product Info", key: "product_info", width: 200, fixed: 'left' },
-  { title: "Brand & Category", key: "brand_category", width: 150 },
+  { title: "Brand, Category & Supplier", key: "brand_category", width: 180 },
   { title: "Size & Color", key: "size_color", width: 120 },
   { title: "Pricing", key: "pricing", width: 150 },
   { title: "Stock", key: "stock", width: 100 },
@@ -379,14 +387,16 @@ function showForm(product) {
   form.value = product ? { 
     ...product,
     discount_percentage: product.discount_percentage || 0,
-    stock_price: product.stock_price || 0
+    stock_price: product.stock_price || 0,
+    supplier: product.supplier || ''
   } : {
     stock_quantity: 0,
     min_stock_level: 5,
     discount_percentage: 0,
     mrp: 0,
     price: 0,
-    stock_price: 0
+    stock_price: 0,
+    supplier: ''
   }
   formVisible.value = true
 }
