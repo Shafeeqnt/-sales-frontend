@@ -183,9 +183,7 @@
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item label="Size" name="size">
-              <a-select v-model:value="form.size" placeholder="Select size" allow-clear>
-                <a-select-option v-for="size in sizes" :key="size" :value="size">{{ size }}</a-select-option>
-              </a-select>
+              <a-input v-model:value="form.size" placeholder="Enter size (e.g., 42, L, XL)" />
             </a-form-item>
           </a-col>
           <a-col :span="12">
@@ -326,8 +324,6 @@ const editing = ref(false)
 const saving = ref(false)
 const searchQuery = ref('')
 const formRef = ref()
-
-const sizes = ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46']
 
 const columns = [
   { title: "Product Info", key: "product_info", width: 200, fixed: 'left' },
