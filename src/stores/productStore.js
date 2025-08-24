@@ -44,8 +44,10 @@ export const useProductStore = defineStore('product', {
             category: product.category || null,
             size: product.size || null,
             color: product.color || null,
-            price: Number(product.price),
-            cost_price: Number(product.cost_price) || null,
+            stock_price: Number(product.stock_price) || null,
+            mrp: Number(product.mrp),
+            discount_percentage: Number(product.discount_percentage) || 0,
+            price: Number(product.price), // This will be auto-calculated by trigger
             stock_quantity: Number(product.stock_quantity) || 0,
             min_stock_level: Number(product.min_stock_level) || 5,
             description: product.description || null,
@@ -82,8 +84,10 @@ export const useProductStore = defineStore('product', {
             category: product.category || null,
             size: product.size || null,
             color: product.color || null,
-            price: Number(product.price),
-            cost_price: Number(product.cost_price) || null,
+            stock_price: Number(product.stock_price) || null,
+            mrp: Number(product.mrp),
+            discount_percentage: Number(product.discount_percentage) || 0,
+            price: Number(product.price), // This will be auto-calculated by trigger
             stock_quantity: Number(product.stock_quantity),
             min_stock_level: Number(product.min_stock_level) || 5,
             description: product.description || null,
@@ -212,6 +216,13 @@ export const useProductStore = defineStore('product', {
         product.category?.toLowerCase().includes(searchTerm) ||
         product.barcode?.toLowerCase().includes(searchTerm)
       )
+    },
+
+    // Calculate selling price helper
+    calculateSellingPrice(mrp, discountPercentage) {
+      const discount = Number(discountPercentage) || 0
+      const price = Number(mrp) || 0
+      return Number((price * (1 - discount / 100)).toFixed(2))
     }
   }
 })

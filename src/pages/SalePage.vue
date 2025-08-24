@@ -2,7 +2,7 @@
   <div class="checkout-page">
     <!-- Page Title -->
     <div class="page-header">
-      <h1 class="title">🛒 Point of Sale</h1>
+      <h1 class="title">🛒 Shalom - Point of Sale</h1>
       <a-button @click="$router.push('/products')" type="default">
         ← Back to Products
       </a-button>
@@ -23,6 +23,13 @@
         <!-- Left Column - Cart Items -->
         <a-col :span="14">
           <a-card title="Cart Items" bordered class="cart-card">
+            <!-- Total Savings Display -->
+            <div v-if="cart.totalSavings > 0" class="savings-banner">
+              <span style="color: #52c41a; font-weight: bold;">
+                🎉 You're saving ₹{{ cart.totalSavings.toFixed(2) }} on this purchase!
+              </span>
+            </div>
+
             <a-table
               :data-source="cart.items"
               :columns="cartColumns"
@@ -37,6 +44,9 @@
                     <div style="font-weight: bold;">{{ record.product_name }}</div>
                     <div style="font-size: 12px; color: #666;">
                       Code: {{ record.product_code }}
+                    </div>
+                    <div v-if="record.discount_info" style="font-size: 11px; color: #52c41a; margin-top: 2px;">
+                      💰 {{ record.discount_info }}
                     </div>
                   </div>
                 </template>
@@ -55,7 +65,12 @@
 
                 <!-- Unit Price -->
                 <template v-if="column.key === 'unit_price'">
-                  ₹{{ Number(record.unit_price).toLocaleString() }}
+                  <div>
+                    <div style="font-weight: bold;">₹{{ Number(record.unit_price).toLocaleString() }}</div>
+                    <div v-if="record.mrp > record.unit_price" style="font-size: 11px; color: #999; text-decoration: line-through;">
+                      MRP: ₹{{ Number(record.mrp).toLocaleString() }}
+                    </div>
+                  </div>
                 </template>
 
                 <!-- Total Price -->
@@ -159,8 +174,12 @@
               <span>Subtotal:</span>
               <span>₹{{ cart.subtotal.toLocaleString() }}</span>
             </div>
+            <div class="summary-row" v-if="cart.totalSavings > 0" style="color: #52c41a;">
+              <span>Product Savings:</span>
+              <span>-₹{{ cart.totalSavings.toLocaleString() }}</span>
+            </div>
             <div class="summary-row" v-if="saleInfo.discount_amount > 0">
-              <span>Discount:</span>
+              <span>Additional Discount:</span>
               <span class="discount">-₹{{ Number(saleInfo.discount_amount).toLocaleString() }}</span>
             </div>
             <div class="summary-row" v-if="saleInfo.tax_amount > 0">
@@ -203,7 +222,7 @@
         </div>
         <h3>Sale #{{ completedSale.saleNumber }}</h3>
         <p style="font-size: 18px; margin: 16px 0;">
-          Total: ₹{{ completedSale.finalAmount?.toLocaleString() }}
+          Total: ��{{ completedSale.finalAmount?.toLocaleString() }}
         </p>
         <a-space>
           <a-button @click="successModalVisible = false">Close</a-button>
@@ -243,7 +262,7 @@ const saleInfo = reactive({
 const cartColumns = [
   { title: "Product", key: "product", width: 200 },
   { title: "Qty", key: "quantity", width: 80, align: 'center' },
-  { title: "Unit Price", key: "unit_price", width: 100, align: 'right' },
+  { title: "Unit Price", key: "unit_price", width: 120, align: 'right' },
   { title: "Total", key: "total_price", width: 120, align: 'right' },
   { title: "", key: "action", width: 50, align: 'center' }
 ];
@@ -312,6 +331,15 @@ function startNewSale() {
   margin: 0;
   font-weight: bold;
   color: #1890ff;
+}
+
+.savings-banner {
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  text-align: center;
 }
 
 .cart-card, .customer-card, .sale-card, .summary-card {

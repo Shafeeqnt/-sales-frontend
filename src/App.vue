@@ -1,5 +1,11 @@
 <template>
-  <a-layout style="min-height: 100vh">
+  <!-- Login Page (no layout) -->
+  <div v-if="!authStore.isAuthenticated">
+    <router-view />
+  </div>
+
+  <!-- Main App Layout (with sidebar) -->
+  <a-layout v-else style="min-height: 100vh">
     <!-- Sidebar -->
     <a-layout-sider
       collapsible
@@ -34,13 +40,40 @@
           <MenuFoldOutlined v-else @click="collapsed = true" />
         </div>
 
+        <div class="header-center">
+          <span class="welcome-text">
+            Welcome, {{ authStore.userName }} 
+            <a-tag :color="authStore.isAdmin() ? 'red' : 'blue'" style="margin-left: 8px">
+              {{ authStore.userRole?.toUpperCase() }}
+            </a-tag>
+          </span>
+        </div>
+
         <div class="header-right">
-          <a-badge :count="cart.totalItems" offset="[10, 0]">
-            <ShoppingCartOutlined
-              style="font-size: 22px; cursor: pointer; color: white"
-              @click="goTo('/sales')"
-            />
-          </a-badge>
+          <a-space size="large">
+            <a-badge :count="cart.totalItems" offset="[10, 0]">
+              <ShoppingCartOutlined
+                style="font-size: 22px; cursor: pointer; color: white"
+                @click="goTo('/sales')"
+              />
+            </a-badge>
+            
+            <a-dropdown>
+              <a-button type="text" style="color: white">
+                <UserOutlined style="margin-right: 8px" />
+                {{ authStore.user?.username }}
+                <DownOutlined />
+              </a-button>
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item @click="handleLogout">
+                    <LogoutOutlined />
+                    Logout
+                  </a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
+          </a-space>
         </div>
       </a-layout-header>
 
@@ -56,7 +89,8 @@
 import { ref, watch, onMounted } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { useCartStore } from "./stores/cartStore"
-import { supabase } from "./lib/supabase"
+import { useAuthStore } from "./stores/authStore"
+import { message } from 'ant-design-vue'
 
 // Ant Design Icons
 import {
@@ -64,11 +98,15 @@ import {
   ShoppingCartOutlined,
   MenuUnfoldOutlined,
   MenuFoldOutlined,
+  UserOutlined,
+  DownOutlined,
+  LogoutOutlined
 } from "@ant-design/icons-vue"
 
 const router = useRouter()
 const route = useRoute()
 const cart = useCartStore()
+const authStore = useAuthStore()
 
 // sidebar collapsed state
 const collapsed = ref(false)
@@ -86,11 +124,16 @@ function goTo(path) {
   router.push(path)
 }
 
-// ✅ Load cart if user logged in
+async function handleLogout() {
+  await authStore.logout()
+  message.success('Logged out successfully')
+  router.push('/login')
+}
+
+// Initialize auth state on app load
 onMounted(async () => {
-  const { data } = await supabase.auth.getUser()
-  if (data?.user) {
-    await cart.loadCart(data.user.id)
+  if (!authStore.isAuthenticated) {
+    await authStore.validateSession()
   }
 })
 </script>
@@ -116,6 +159,24 @@ onMounted(async () => {
   color: white;
   padding: 0 24px;
   height: 64px;
+}
+
+.header-left {
+  flex: 0 0 auto;
+}
+
+.header-center {
+  flex: 1;
+  text-align: center;
+}
+
+.header-right {
+  flex: 0 0 auto;
+}
+
+.welcome-text {
+  color: white;
+  font-size: 16px;
 }
 
 /* Content Styling */

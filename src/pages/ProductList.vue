@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="page-header">
-      <h2>👟 Product Management</h2>
+      <h2>👟 Shalom - Product Management</h2>
       <div class="header-actions">
         <a-input-search
           v-model:value="searchQuery"
@@ -9,7 +9,11 @@
           style="width: 300px; margin-right: 16px"
           @search="handleSearch"
         />
-        <a-button type="primary" @click="showForm(null)">
+        <a-button 
+          v-if="authStore.canManageProducts()" 
+          type="primary" 
+          @click="showForm(null)"
+        >
           + Add Product
         </a-button>
       </div>
@@ -32,7 +36,7 @@
       bordered
       size="middle"
       :pagination="{ pageSize: 10, showSizeChanger: true }"
-      :scroll="{ x: 1200 }"
+      :scroll="{ x: 1300 }"
     >
       <!-- Custom Cells -->
       <template #bodyCell="{ column, record }">
@@ -65,14 +69,20 @@
           </div>
         </template>
 
-        <!-- Price -->
-        <template v-if="column.key === 'price'">
+        <!-- Pricing -->
+        <template v-if="column.key === 'pricing'">
           <div>
-            <div style="font-weight: bold; color: #1890ff;">
-              ₹{{ Number(record.price).toLocaleString() }}
+            <div style="font-size: 11px; color: #666;">
+              Stock: ₹{{ Number(record.stock_price || 0).toLocaleString() }}
             </div>
-            <div v-if="record.cost_price" style="font-size: 12px; color: #666;">
-              Cost: ₹{{ Number(record.cost_price).toLocaleString() }}
+            <div style="font-size: 11px; color: #666;">
+              MRP: ₹{{ Number(record.mrp || 0).toLocaleString() }}
+            </div>
+            <div v-if="record.discount_percentage > 0" style="font-size: 11px; color: #f5222d;">
+              Discount: {{ record.discount_percentage }}%
+            </div>
+            <div style="font-weight: bold; color: #1890ff; font-size: 13px;">
+              Selling: ₹{{ Number(record.price || 0).toLocaleString() }}
             </div>
           </div>
         </template>
@@ -92,10 +102,16 @@
         <!-- Action Buttons -->
         <template v-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" @click="showForm(record)" size="small">
+            <a-button 
+              v-if="authStore.canManageProducts()" 
+              type="link" 
+              @click="showForm(record)" 
+              size="small"
+            >
               Edit
             </a-button>
             <a-popconfirm
+              v-if="authStore.canManageProducts()"
               title="Are you sure to delete this product?"
               ok-text="Yes"
               cancel-text="No"
@@ -116,8 +132,9 @@
       </template>
     </a-table>
 
-    <!-- Add/Edit Modal -->
+    <!-- Add/Edit Modal (Only for Admin) -->
     <a-modal
+      v-if="authStore.canManageProducts()"
       v-model:open="formVisible"
       :title="editing ? 'Edit Product' : 'Add Product'"
       @ok="handleSave"
@@ -178,11 +195,14 @@
           </a-col>
         </a-row>
 
+        <!-- Pricing Section -->
+        <a-divider>Pricing Information</a-divider>
+        
         <a-row :gutter="16">
-          <a-col :span="12">
-            <a-form-item label="Selling Price (₹)" name="price">
+          <a-col :span="8">
+            <a-form-item label="Stock Price (₹)" name="stock_price">
               <a-input-number 
-                v-model:value="form.price" 
+                v-model:value="form.stock_price" 
                 style="width: 100%" 
                 :min="0"
                 :precision="2"
@@ -190,19 +210,56 @@
               />
             </a-form-item>
           </a-col>
-          <a-col :span="12">
-            <a-form-item label="Cost Price (₹)" name="cost_price">
+          <a-col :span="8">
+            <a-form-item label="MRP (₹)" name="mrp">
               <a-input-number 
-                v-model:value="form.cost_price" 
+                v-model:value="form.mrp" 
                 style="width: 100%" 
                 :min="0"
                 :precision="2"
                 placeholder="0.00"
+                @change="calculateSellingPrice"
+              />
+            </a-form-item>
+          </a-col>
+          <a-col :span="8">
+            <a-form-item label="Discount (%)" name="discount_percentage">
+              <a-input-number 
+                v-model:value="form.discount_percentage" 
+                style="width: 100%" 
+                :min="0"
+                :max="100"
+                :precision="2"
+                placeholder="0.00"
+                @change="calculateSellingPrice"
               />
             </a-form-item>
           </a-col>
         </a-row>
 
+        <a-row :gutter="16">
+          <a-col :span="24">
+            <a-form-item label="Selling Price (₹)" name="price">
+              <a-input-number 
+                v-model:value="calculatedSellingPrice" 
+                style="width: 100%" 
+                :precision="2"
+                disabled
+                placeholder="Auto-calculated"
+              />
+              <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                Selling Price = MRP - (MRP × Discount%) | 
+                <span v-if="form.stock_price && calculatedSellingPrice" style="color: #52c41a;">
+                  Profit: ₹{{ (calculatedSellingPrice - (form.stock_price || 0)).toFixed(2) }}
+                </span>
+              </div>
+            </a-form-item>
+          </a-col>
+        </a-row>
+
+        <!-- Stock Section -->
+        <a-divider>Stock Information</a-divider>
+        
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item label="Stock Quantity" name="stock_quantity">
@@ -231,18 +288,39 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- Permission Denied Message for Local Users -->
+    <a-modal
+      v-if="!authStore.canManageProducts()"
+      v-model:open="permissionDeniedVisible"
+      title="Access Denied"
+      :footer="null"
+      width="400px"
+    >
+      <div style="text-align: center; padding: 20px;">
+        <div style="font-size: 48px; color: #ff4d4f; margin-bottom: 16px;">
+          🚫
+        </div>
+        <h3>Permission Denied</h3>
+        <p>You don't have permission to manage products. Only administrators can add, edit, or delete products.</p>
+        <a-button @click="permissionDeniedVisible = false">OK</a-button>
+      </div>
+    </a-modal>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue"
+import { ref, onMounted, computed, watch } from "vue"
 import { useProductStore } from "../stores/productStore"
 import { useCartStore } from "../stores/cartStore"
+import { useAuthStore } from "../stores/authStore"
 
 const store = useProductStore()
 const cart = useCartStore()
+const authStore = useAuthStore()
 
 const formVisible = ref(false)
+const permissionDeniedVisible = ref(false)
 const form = ref({})
 const editing = ref(false)
 const saving = ref(false)
@@ -255,16 +333,28 @@ const columns = [
   { title: "Product Info", key: "product_info", width: 200, fixed: 'left' },
   { title: "Brand & Category", key: "brand_category", width: 150 },
   { title: "Size & Color", key: "size_color", width: 120 },
-  { title: "Price", key: "price", width: 120 },
+  { title: "Pricing", key: "pricing", width: 150 },
   { title: "Stock", key: "stock", width: 100 },
   { title: "Action", key: "action", width: 200, fixed: 'right' }
 ]
 
 const rules = {
   name: [{ required: true, message: 'Please enter product name' }],
-  price: [{ required: true, message: 'Please enter selling price' }],
+  mrp: [{ required: true, message: 'Please enter MRP' }],
   stock_quantity: [{ required: true, message: 'Please enter stock quantity' }]
 }
+
+// Computed property for calculated selling price
+const calculatedSellingPrice = computed(() => {
+  const mrp = Number(form.value.mrp) || 0
+  const discount = Number(form.value.discount_percentage) || 0
+  return Number((mrp * (1 - discount / 100)).toFixed(2))
+})
+
+// Watch for changes in MRP or discount to update the form price
+watch(calculatedSellingPrice, (newPrice) => {
+  form.value.price = newPrice
+})
 
 const filteredProducts = computed(() => {
   if (!searchQuery.value) return store.products
@@ -275,11 +365,32 @@ const lowStockProducts = computed(() => {
   return store.getLowStockProducts()
 })
 
+function calculateSellingPrice() {
+  // This function is called when MRP or discount changes
+  // The actual calculation is handled by the computed property
+  const mrp = Number(form.value.mrp) || 0
+  const discount = Number(form.value.discount_percentage) || 0
+  form.value.price = Number((mrp * (1 - discount / 100)).toFixed(2))
+}
+
 function showForm(product) {
+  if (!authStore.canManageProducts()) {
+    permissionDeniedVisible.value = true
+    return
+  }
+  
   editing.value = !!product
-  form.value = product ? { ...product } : {
+  form.value = product ? { 
+    ...product,
+    discount_percentage: product.discount_percentage || 0,
+    stock_price: product.stock_price || 0
+  } : {
     stock_quantity: 0,
-    min_stock_level: 5
+    min_stock_level: 5,
+    discount_percentage: 0,
+    mrp: 0,
+    price: 0,
+    stock_price: 0
   }
   formVisible.value = true
 }
@@ -288,6 +399,9 @@ async function handleSave() {
   try {
     await formRef.value.validate()
     saving.value = true
+    
+    // Ensure the selling price is calculated before saving
+    calculateSellingPrice()
     
     if (editing.value) {
       await store.updateProduct(form.value.id, form.value)

@@ -39,15 +39,28 @@ export const useCartStore = defineStore("cartStore", {
           return
         }
         
+        // Calculate discount information
+        const mrp = Number(product.mrp) || 0
+        const sellingPrice = Number(product.price) || 0
+        const discountAmount = mrp - sellingPrice
+        const discountPercentage = mrp > 0 ? ((discountAmount / mrp) * 100) : 0
+        const discountInfo = discountAmount > 0 ? 
+          `Saved ₹${discountAmount.toFixed(2)} (${discountPercentage.toFixed(1)}% off from MRP ₹${mrp.toFixed(2)})` : 
+          null
+
         const newItem = {
           id: Date.now(), // temporary ID for local cart
           product_id: product.id,
           product_code: product.product_code,
           product_name: product.name,
           quantity: 1,
-          unit_price: Number(product.price),
-          total_price: Number(product.price),
-          available_stock: product.stock_quantity
+          unit_price: sellingPrice,
+          total_price: sellingPrice,
+          available_stock: product.stock_quantity,
+          mrp: mrp,
+          discount_amount: discountAmount,
+          discount_percentage: discountPercentage,
+          discount_info: discountInfo
         }
         this.items.push(newItem)
         console.log('Added new item to cart:', newItem)
@@ -219,6 +232,10 @@ export const useCartStore = defineStore("cartStore", {
       return subtotal - discount + tax
     },
 
+    // Total savings from MRP
+    totalSavings: (state) => 
+      state.items.reduce((sum, item) => sum + (item.discount_amount * item.quantity), 0),
+
     // Check if cart is empty
     isEmpty: (state) => state.items.length === 0,
 
@@ -228,12 +245,14 @@ export const useCartStore = defineStore("cartStore", {
       const discount = Number(state.saleInfo.discount_amount) || 0
       const tax = Number(state.saleInfo.tax_amount) || 0
       const total = subtotal - discount + tax
+      const savings = state.items.reduce((sum, item) => sum + (item.discount_amount * item.quantity), 0)
       
       return {
         subtotal,
         discount,
         tax,
         total,
+        savings,
         itemCount: state.items.length,
         totalQuantity: state.items.reduce((sum, item) => sum + item.quantity, 0)
       }
