@@ -113,6 +113,9 @@
             >
               Edit
             </a-button>
+            <a-button type="link" @click="showBarcode(record)" size="small">
+              Barcode
+            </a-button>
             <a-popconfirm
               v-if="authStore.canManageProducts()"
               title="Are you sure to delete this product?"
@@ -295,6 +298,67 @@
       </a-form>
     </a-modal>
 
+    <!-- Barcode Display Modal -->
+    <a-modal
+      v-model:open="barcodeVisible"
+      title="Product Barcode"
+      width="600px"
+      :footer="null"
+      class="barcode-modal"
+    >
+      <div class="barcode-container" id="barcodeContent">
+        <div class="barcode-header">
+          <h3>{{ selectedProduct?.name }}</h3>
+          <p>Product Code: {{ selectedProduct?.product_code }}</p>
+          <div class="price-info">
+            <span class="price-item">MRP: ₹{{ selectedProduct?.mrp?.toLocaleString() || 'N/A' }}</span>
+            <span class="price-separator">|</span>
+            <span class="price-item">Selling: ₹{{ selectedProduct?.price?.toLocaleString() }}</span>
+          </div>
+        </div>
+        
+        <div class="barcode-section">
+          <canvas ref="barcodeCanvas" class="barcode-canvas"></canvas>
+          <div class="barcode-text">
+            {{ generatedBarcode }}
+          </div>
+        </div>
+
+        <div class="barcode-actions">
+          <a-button @click="printBarcode" type="primary" size="large">
+            Print Barcode
+          </a-button>
+          <a-button @click="barcodeVisible = false" size="large">
+            Close
+          </a-button>
+        </div>
+      </div>
+    </a-modal>
+
+    <!-- Success Modal for New Products -->
+    <a-modal
+      v-model:open="showSuccessModal"
+      title="Product Created Successfully!"
+      width="600px"
+      :footer="null"
+      class="success-modal"
+    >
+      <div class="success-content">
+        <div class="success-icon">
+          ✅
+        </div>
+        <p>Product "{{ newProductName }}" has been created successfully!</p>
+        <div class="success-actions">
+          <a-button @click="viewNewProductBarcode" type="primary" size="large">
+            View Barcode
+          </a-button>
+          <a-button @click="showSuccessModal = false" size="large">
+            Continue
+          </a-button>
+        </div>
+      </div>
+    </a-modal>
+
     <!-- Permission Denied Message for Local Users -->
     <a-modal
       v-if="!authStore.canManageProducts()"
@@ -316,7 +380,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from "vue"
+import { ref, onMounted, computed, watch, nextTick } from "vue"
 import { useProductStore } from "../stores/productStore"
 import { useCartStore } from "../stores/cartStore"
 import { useAuthStore } from "../stores/authStore"
@@ -333,13 +397,22 @@ const saving = ref(false)
 const searchQuery = ref('')
 const formRef = ref()
 
+// Barcode related refs
+const barcodeVisible = ref(false)
+const selectedProduct = ref(null)
+const generatedBarcode = ref('')
+const barcodeCanvas = ref(null)
+const showSuccessModal = ref(false)
+const newProductName = ref('')
+const newProductId = ref(null)
+
 const columns = [
   { title: "Product Info", key: "product_info", width: 200, fixed: 'left' },
   { title: "Brand, Category & Supplier", key: "brand_category", width: 180 },
   { title: "Size & Color", key: "size_color", width: 120 },
   { title: "Pricing", key: "pricing", width: 150 },
   { title: "Stock", key: "stock", width: 100 },
-  { title: "Action", key: "action", width: 200, fixed: 'right' }
+  { title: "Action", key: "action", width: 250, fixed: 'right' }
 ]
 
 const rules = {
@@ -368,6 +441,213 @@ const filteredProducts = computed(() => {
 const lowStockProducts = computed(() => {
   return store.getLowStockProducts()
 })
+
+// Barcode Functions
+function generateBarcodeNumber(product) {
+  // Generate a unique 12-digit barcode based on product info
+  const timestamp = Date.now().toString().slice(-6)
+  const productId = product.id.toString().padStart(3, '0').slice(-3)
+  const priceCode = Math.floor(product.price).toString().padStart(3, '0').slice(-3)
+  return `${timestamp}${productId}${priceCode}`
+}
+
+function showBarcode(product) {
+  console.log('Showing barcode for product:', product)
+  selectedProduct.value = product
+  generatedBarcode.value = product.barcode || generateBarcodeNumber(product)
+  barcodeVisible.value = true
+  
+  // Use a longer timeout to ensure modal is rendered
+  setTimeout(() => {
+    drawBarcode()
+  }, 100)
+}
+
+function drawBarcode() {
+  const canvas = barcodeCanvas.value
+  if (!canvas) {
+    console.error('Canvas not found')
+    return
+  }
+  
+  console.log('Drawing compact barcode:', generatedBarcode.value)
+  const ctx = canvas.getContext('2d')
+  const barcode = generatedBarcode.value
+  
+  // Set canvas dimensions for 50mm x 25mm (approx 189px x 94px at 96 DPI)
+  canvas.width = 189
+  canvas.height = 94
+  
+  // Clear canvas with white background
+  ctx.fillStyle = 'white'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  
+  // Draw barcode bars in lower portion
+  ctx.fillStyle = 'black'
+  const barWidth = 1.5
+  const barHeight = 35
+  const startX = 10
+  const startY = 45 // Start bars lower to leave room for text
+  
+  // Simple barcode pattern based on digits
+  for (let i = 0; i < barcode.length; i++) {
+    const digit = parseInt(barcode[i])
+    const pattern = digit % 2 === 0 ? [1, 0, 1] : [1, 1, 0, 1]
+    
+    for (let j = 0; j < pattern.length; j++) {
+      if (pattern[j] === 1) {
+        const x = startX + (i * 13) + (j * barWidth)
+        ctx.fillRect(x, startY, barWidth, barHeight)
+      }
+    }
+  }
+  
+  // Add barcode number below bars
+  ctx.fillStyle = 'black'
+  ctx.font = '8px monospace'
+  ctx.textAlign = 'center'
+  ctx.fillText(barcode, canvas.width / 2, 88)
+}
+
+function printBarcode() {
+  const canvas = barcodeCanvas.value
+  if (!canvas) {
+    console.error('Canvas not found for printing')
+    return
+  }
+  
+  // Convert canvas to base64 image
+  const barcodeImageData = canvas.toDataURL('image/png')
+  
+  // Create a new window for printing
+  const printWindow = window.open('', '_blank')
+  
+  const printHTML = `
+    <html>
+      <head>
+        <title>Print Barcode Sticker - ${selectedProduct.value?.name}</title>
+        <style>
+          @page {
+            size: 50mm 25mm;
+            margin: 0;
+          }
+          
+          body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            width: 50mm;
+            height: 25mm;
+            overflow: hidden;
+          }
+          
+          .sticker-container {
+            width: 100%;
+            height: 100%;
+            padding: 1mm;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            border: 0.5px solid #000;
+          }
+          
+          .product-info {
+            text-align: center;
+            margin-bottom: 1mm;
+          }
+          
+          .product-name {
+            font-size: 7px;
+            font-weight: bold;
+            line-height: 8px;
+            margin: 0 0 0.5mm 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #000;
+          }
+          
+          .price-line {
+            font-size: 10px;
+            line-height: 7px;
+            margin: 0;
+            color: #000;
+            font-weight: 600;
+          }
+          
+          .barcode-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+          }
+          
+          .barcode-image {
+            width: 47mm;
+            height: auto;
+            max-height: 18mm;
+            display: block;
+          }
+          
+          @media print {
+            body { 
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+            .sticker-container { 
+              border: 0.5px solid #000 !important;
+              page-break-inside: avoid;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="sticker-container">
+          <div class="product-info">
+            <div class="product-name">${selectedProduct.value?.product_code || ''}</div>
+            <div class="price-line">MRP:₹${selectedProduct.value?.mrp?.toLocaleString() || 'N/A'} | SP:₹${selectedProduct.value?.price?.toLocaleString() || 'N/A'}</div>
+          </div>
+          
+          <div class="barcode-section">
+            <img src="${barcodeImageData}" alt="Barcode" class="barcode-image" />
+          </div>
+        </div>
+      </body>
+    </html>
+  `
+  
+  printWindow.document.write(printHTML)
+  printWindow.document.close()
+  
+  // Wait for image to load, then print
+  setTimeout(() => {
+    printWindow.print()
+    printWindow.close()
+  }, 1000)
+}
+
+function viewNewProductBarcode() {
+  showSuccessModal.value = false
+  
+  // Add a small delay to ensure DOM is ready
+  nextTick(() => {
+    const product = store.products.find(p => p.id === newProductId.value)
+    if (product) {
+      console.log('Found product for barcode:', product)
+      showBarcode(product)
+    } else {
+      console.error('Product not found:', newProductId.value)
+      // Try to find by name as fallback
+      const productByName = store.products.find(p => p.name === newProductName.value)
+      if (productByName) {
+        console.log('Found product by name:', productByName)
+        showBarcode(productByName)
+      }
+    }
+  })
+}
 
 function calculateSellingPrice() {
   // This function is called when MRP or discount changes
@@ -409,10 +689,20 @@ async function handleSave() {
     // Ensure the selling price is calculated before saving
     calculateSellingPrice()
     
+    let savedProduct
     if (editing.value) {
-      await store.updateProduct(form.value.id, form.value)
+      savedProduct = await store.updateProduct(form.value.id, form.value)
     } else {
-      await store.addProduct(form.value)
+      savedProduct = await store.addProduct(form.value)
+      // Store the product info for success modal
+      newProductName.value = form.value.name
+      // Wait for the product to be added to the store
+      await nextTick()
+      const createdProduct = store.products.find(p => p.name === form.value.name && p.product_code === form.value.product_code)
+      if (createdProduct) {
+        newProductId.value = createdProduct.id
+      }
+      showSuccessModal.value = true
     }
     
     formVisible.value = false
@@ -468,5 +758,109 @@ onMounted(() => {
 
 .page-header h2 {
   margin: 0;
+}
+
+.barcode-container {
+  text-align: center;
+  padding: 20px;
+}
+
+.barcode-header h3 {
+  margin-bottom: 5px;
+  font-size: 18px;
+  color: #1890ff;
+}
+
+.barcode-header p {
+  margin-bottom: 10px;
+  color: #666;
+}
+
+.price-info {
+  margin-bottom: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.price-item {
+  display: inline-block;
+  margin: 0 8px;
+}
+
+.price-separator {
+  margin: 0 8px;
+  color: #666;
+}
+
+.barcode-section {
+  margin: 20px 0;
+  padding: 20px;
+  border: 2px dashed #d9d9d9;
+  border-radius: 8px;
+  background-color: #fafafa;
+}
+
+.barcode-canvas {
+  display: block;
+  margin: 0 auto 10px;
+  border: 1px solid #d9d9d9;
+  background-color: white;
+}
+
+.barcode-text {
+  font-family: 'Courier New', monospace;
+  font-size: 16px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  margin-top: 10px;
+}
+
+.barcode-actions {
+  margin-top: 20px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.success-content {
+  text-align: center;
+  padding: 20px;
+}
+
+.success-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.success-content p {
+  font-size: 16px;
+  margin-bottom: 20px;
+  color: #52c41a;
+  font-weight: 500;
+}
+
+.success-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* Print styles */
+@media print {
+  .barcode-actions {
+    display: none !important;
+  }
+  
+  .barcode-container {
+    border: 1px solid #000;
+    padding: 20px;
+    margin: 20px;
+  }
+  
+  .barcode-section {
+    border: 2px solid #000;
+    background-color: white !important;
+  }
 }
 </style>
