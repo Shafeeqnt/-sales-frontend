@@ -213,6 +213,9 @@
               <a-input-number 
                 v-model:value="form.mrp" 
                 style="width: 100%" 
+                :min="0"
+                :precision="2"
+                placeholder="0.00"
                 @change="calculateSellingPrice"
               />
             </a-form-item>
@@ -222,6 +225,9 @@
               <a-input-number 
                 v-model:value="form.stock_price" 
                 style="width: 100%" 
+                :min="0"
+                :precision="2"
+                placeholder="0.00"
               />
             </a-form-item>
           </a-col>
@@ -231,6 +237,9 @@
                 v-model:value="form.discount_percentage" 
                 style="width: 100%" 
                 :min="0"
+                :max="100"
+                :precision="2"
+                placeholder="0.00"
                 @change="calculateSellingPrice"
               />
             </a-form-item>
@@ -375,6 +384,7 @@ import { ref, onMounted, computed, watch, nextTick } from "vue"
 import { useProductStore } from "../stores/productStore"
 import { useCartStore } from "../stores/cartStore"
 import { useAuthStore } from "../stores/authStore"
+import JsBarcode from 'jsbarcode'
 
 const store = useProductStore()
 const cart = useCartStore()
@@ -462,42 +472,40 @@ function drawBarcode() {
   }
   
   console.log('Drawing compact barcode:', generatedBarcode.value)
-  const ctx = canvas.getContext('2d')
-  const barcode = generatedBarcode.value
-  
-  // Set canvas dimensions for 50mm x 25mm (approx 189px x 94px at 96 DPI)
-  canvas.width = 189
-  canvas.height = 94
-  
-  // Clear canvas with white background
-  ctx.fillStyle = 'white'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-  
-  // Draw barcode bars in lower portion
-  ctx.fillStyle = 'black'
-  const barWidth = 1.5
-  const barHeight = 35
-  const startX = 10
-  const startY = 45 // Start bars lower to leave room for text
-  
-  // Simple barcode pattern based on digits
-  for (let i = 0; i < barcode.length; i++) {
-    const digit = parseInt(barcode[i])
-    const pattern = digit % 2 === 0 ? [1, 0, 1] : [1, 1, 0, 1]
-    
-    for (let j = 0; j < pattern.length; j++) {
-      if (pattern[j] === 1) {
-        const x = startX + (i * 13) + (j * barWidth)
-        ctx.fillRect(x, startY, barWidth, barHeight)
-      }
-    }
+  // Method 1: Check for CDN loaded JsBarcode
+  if (window.JsBarcode) {
+    window.JsBarcode(canvas, generatedBarcode.value, {
+      format: "CODE128",
+      width: 2,
+      height: 60,
+      displayValue: true,
+      fontSize: 12,
+      margin: 10,
+      background: "#ffffff",
+      lineColor: "#000000"
+    })
+    return
   }
   
-  // Add barcode number below bars
-  ctx.fillStyle = 'black'
-  ctx.font = '8px monospace'
-  ctx.textAlign = 'center'
-  ctx.fillText(barcode, canvas.width / 2, 88)
+  // Method 2: Check for imported JsBarcode (if using npm)
+  if (typeof JsBarcode !== 'undefined') {
+    JsBarcode(canvas, generatedBarcode.value, {
+      format: "CODE128",
+      width: 2,
+      height: 60,
+      displayValue: true,
+      fontSize: 12,
+      margin: 10,
+      background: "#ffffff",
+      lineColor: "#000000"
+    })
+    return
+  }
+  
+  // Fallback to manual generation
+  console.warn('JsBarcode not available, using fallback')
+  generateFallbackBarcode(canvas)
+
 }
 
 function printBarcode() {
@@ -527,8 +535,8 @@ function printBarcode() {
             margin: 0;
             padding: 0;
             font-family: Arial, sans-serif;
-            width: 50mm;
-            height: 25mm;
+            width: 37mm;
+            height: 24mm;
             overflow: hidden;
           }
           
@@ -560,7 +568,7 @@ function printBarcode() {
           }
           
           .price-line {
-            font-size: 10px;
+            font-size: 12px;
             line-height: 7px;
             margin: 0;
             color: #000;
@@ -576,7 +584,7 @@ function printBarcode() {
           }
           
           .barcode-image {
-            width: 47mm;
+            width: 35mm;
             height: auto;
             max-height: 18mm;
             display: block;
@@ -598,15 +606,19 @@ function printBarcode() {
         <div class="sticker-container">
           <div class="product-info">
             <div class="product-name">${selectedProduct.value?.product_code || ''}</div>
-            <div class="price-line">MRP:₹${selectedProduct.value?.mrp?.toLocaleString() || 'N/A'} | SP:₹${selectedProduct.value?.price?.toLocaleString() || 'N/A'}</div>
+            <div class="price-line">MRP: ₹${selectedProduct.value?.mrp?.toLocaleString() || 'N/A'} </div>
           </div>
           
           <div class="barcode-section">
             <img src="${barcodeImageData}" alt="Barcode" class="barcode-image" />
           </div>
+          <div class="product-info">
+            <div class="price-line">Our Price: ₹${selectedProduct.value?.price?.toLocaleString() || 'N/A'}</div>
+          </div>
         </div>
       </body>
     </html>
+    
   `
   
   printWindow.document.write(printHTML)
@@ -663,10 +675,10 @@ function showForm(product) {
   } : {
     stock_quantity: 0,
     min_stock_level: 5,
-    discount_percentage:null,
-    mrp: null,
-    price: null,
-    stock_price: null,
+    discount_percentage: 0,
+    mrp: 0,
+    price: 0,
+    stock_price: 0,
     supplier: ''
   }
   formVisible.value = true
