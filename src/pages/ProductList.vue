@@ -213,9 +213,6 @@
               <a-input-number 
                 v-model:value="form.mrp" 
                 style="width: 100%" 
-                :min="0"
-                :precision="2"
-                placeholder="0.00"
                 @change="calculateSellingPrice"
               />
             </a-form-item>
@@ -225,9 +222,6 @@
               <a-input-number 
                 v-model:value="form.stock_price" 
                 style="width: 100%" 
-                :min="0"
-                :precision="2"
-                placeholder="0.00"
               />
             </a-form-item>
           </a-col>
@@ -237,9 +231,6 @@
                 v-model:value="form.discount_percentage" 
                 style="width: 100%" 
                 :min="0"
-                :max="100"
-                :precision="2"
-                placeholder="0.00"
                 @change="calculateSellingPrice"
               />
             </a-form-item>
@@ -675,10 +666,10 @@ function showForm(product) {
   } : {
     stock_quantity: 0,
     min_stock_level: 5,
-    discount_percentage: 0,
-    mrp: 0,
-    price: 0,
-    stock_price: 0,
+    discount_percentage: null,
+    mrp: null,
+    price: null,
+    stock_price: null,
     supplier: ''
   }
   formVisible.value = true
