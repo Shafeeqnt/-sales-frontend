@@ -2,7 +2,7 @@
   <div class="checkout-page">
     <!-- Page Title -->
     <div class="page-header">
-      <h1 class="title">🛒 Shalom - Point of Sale</h1>
+      <h1 class="title">🛒 FootPrints - Point of Sale</h1>
       <a-button @click="$router.push('/products')" type="default">
         ← Back to Products
       </a-button>

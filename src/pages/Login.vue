@@ -17,7 +17,7 @@
               <span class="logo-text">S</span>
             </div>
           </div>
-          <h1 class="brand-name">SHALOM</h1>
+          <h1 class="brand-name">FootPrints</h1>
           <p class="brand-tagline">Premium Footwear & Accessories</p>
           <div class="brand-divider"></div>
         </div>
@@ -108,7 +108,7 @@ async function handleLogin() {
     const result = await authStore.login(loginForm.username, loginForm.password)
     
     if (result.success) {
-      message.success(`Welcome to Shalom, ${result.user.fullName}!`)
+      message.success(`Welcome to FootPrints, ${result.user.fullName}!`)
       router.push('/products')
     } else {
       message.error(result.error || 'Invalid credentials')
