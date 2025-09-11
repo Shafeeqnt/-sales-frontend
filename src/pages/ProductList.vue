@@ -151,12 +151,12 @@
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item label="Product Code" name="product_code">
-              <a-input v-model:value="form.product_code" placeholder="Auto-generated if empty" />
+              <a-input v-model:value="form.product_code"  readonly   style="backgroundColor: #f5f5f5; color: #666" placeholder="Auto-generated" />
             </a-form-item>
           </a-col>
           <a-col :span="12">
             <a-form-item label="Barcode" name="barcode">
-              <a-input v-model:value="form.barcode" placeholder="Optional" />
+              <a-input v-model:value="form.barcode"  readonly   style="backgroundColor: #f5f5f5; color: #666" placeholder="Optional" />
             </a-form-item>
           </a-col>
         </a-row>
@@ -526,20 +526,22 @@ function printBarcode() {
             margin: 0;
             padding: 0;
             font-family: Arial, sans-serif;
-            width: 37mm;
+            width: 48mm;
             height: 24mm;
             overflow: hidden;
           }
           
           .sticker-container {
-            width: 100%;
-            height: 100%;
+            width: 50mm;
+            height: 25mm;
             padding: 1mm;
+            margin:
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
             background: white;
             border: 0.5px solid #000;
+            border-radius: 10px;
           }
           
           .product-info {
@@ -559,7 +561,7 @@ function printBarcode() {
           }
           
           .price-line {
-            font-size: 12px;
+            font-size: 14px;
             line-height: 7px;
             margin: 0;
             color: #000;
@@ -575,7 +577,7 @@ function printBarcode() {
           }
           
           .barcode-image {
-            width: 35mm;
+            width: 45mm;
             height: auto;
             max-height: 18mm;
             display: block;
