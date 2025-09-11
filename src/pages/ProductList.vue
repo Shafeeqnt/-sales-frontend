@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="page-header">
-      <h2>👟 FootPrints - Product Management</h2>
+      <h2>👟 Shalom - Product Management</h2>
       <div class="header-actions">
         <a-input-search
           v-model:value="searchQuery"
@@ -538,7 +538,6 @@ function printBarcode() {
             display: flex;
             flex-direction: column;
             background: white;
-            border: 0.5px solid #000;
             border-radius: 10px;
           }
           
