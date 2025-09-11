@@ -589,7 +589,7 @@ function printBarcode() {
               padding: 0 !important;
             }
             .sticker-container { 
-              border: 0.5px solid #000 !important;
+              // border: 0.5px solid #000 !important;
               page-break-inside: avoid;
             }
           }
