@@ -518,7 +518,7 @@ function printBarcode() {
         <title>Print Barcode Sticker - ${selectedProduct.value?.name}</title>
         <style>
           @page {
-            size: 50mm 25mm;
+            size: 50mm 24mm;
             margin: 0;
           }
           
@@ -532,8 +532,8 @@ function printBarcode() {
           }
           
           .sticker-container {
-            width: 50mm;
-            height: 25mm;
+            width: 48mm;
+            height: 24mm;
             padding: 1mm;
             margin:
             box-sizing: border-box;
@@ -561,7 +561,7 @@ function printBarcode() {
           }
           
           .price-line {
-            font-size: 14px;
+            font-size: 13px;
             line-height: 7px;
             margin: 0;
             color: #000;
@@ -577,7 +577,7 @@ function printBarcode() {
           }
           
           .barcode-image {
-            width: 45mm;
+            width: 40mm;
             height: auto;
             max-height: 18mm;
             display: block;
