@@ -14,7 +14,7 @@
         <div class="brand-section">
           <div class="brand-logo">
             <div class="logo-circle">
-              <span class="logo-text">S</span>
+              <span class="logo-text">FP</span>
             </div>
           </div>
           <h1 class="brand-name">FootPrints</h1>
