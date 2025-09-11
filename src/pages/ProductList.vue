@@ -535,8 +535,6 @@ function printBarcode() {
             width: 48mm;
             height: 24mm;
             padding: 1mm;
-            margin:
-            box-sizing: border-box;
             display: flex;
             flex-direction: column;
             background: white;
