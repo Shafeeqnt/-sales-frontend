@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="page-header">
-      <h2>👟 Shalom - Product Management</h2>
+      <h2>👟 FootPrints - Product Management</h2>
       <div class="header-actions">
         <a-input-search
           v-model:value="searchQuery"
