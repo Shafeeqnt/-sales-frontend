@@ -180,10 +180,10 @@ const invalidRows = computed(() =>
 function downloadTemplate() {
   const templateData = [
     {
-      name: 'Nike Air Force 1',
-      brand: 'Nike',
+      name: 'Test Product',
+      brand: 'Test Brand',
       category: 'Footwear',
-      supplier: 'Nike India',
+      supplier: 'Test Supplier',
       size: '42',
       color: 'White',
       stock_price: 4500,
@@ -191,21 +191,7 @@ function downloadTemplate() {
       discount_percentage: 10,
       stock_quantity: 50,
       min_stock_level: 5,
-      description: 'Classic white sneakers'
-    },
-    {
-      name: 'Adidas Ultraboost',
-      brand: 'Adidas',
-      category: 'Footwear',
-      supplier: 'Adidas India',
-      size: '43',
-      color: 'Black',
-      stock_price: 8000,
-      mrp: 12995,
-      discount_percentage: 15,
-      stock_quantity: 30,
-      min_stock_level: 5,
-      description: 'Premium running shoes'
+      description: 'Test Product Description'
     }
   ]
 
