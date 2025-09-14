@@ -11,6 +11,13 @@
         />
         <a-button 
           v-if="authStore.canManageProducts()" 
+          @click="showBulkImport = true"
+          style="margin-right: 8px"
+        >
+          📊 Bulk Import
+        </a-button>
+        <a-button 
+          v-if="authStore.canManageProducts()" 
           type="primary" 
           @click="showForm(null)"
         >
@@ -367,12 +374,19 @@
         <a-button @click="permissionDeniedVisible = false">OK</a-button>
       </div>
     </a-modal>
+
+    <!-- Bulk Import Component -->
+    <BulkImport 
+      v-model:visible="showBulkImport" 
+      @import-complete="handleImportComplete"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed, watch, nextTick } from "vue"
 import { useProductStore } from "../stores/productStore"
+import BulkImport from '../components/BulkProductImport.vue'
 import { useCartStore } from "../stores/cartStore"
 import { useAuthStore } from "../stores/authStore"
 import JsBarcode from 'jsbarcode'
@@ -397,6 +411,13 @@ const barcodeCanvas = ref(null)
 const showSuccessModal = ref(false)
 const newProductName = ref('')
 const newProductId = ref(null)
+
+
+const components = {
+  BulkImport
+}
+
+const showBulkImport = ref(false)
 
 const columns = [
   { title: "Product Info", key: "product_info", width: 200, fixed: 'left' },
@@ -497,6 +518,12 @@ function drawBarcode() {
   console.warn('JsBarcode not available, using fallback')
   generateFallbackBarcode(canvas)
 
+}
+
+function handleImportComplete() {
+  // Products are already refreshed in the component
+  showBulkImport.value = false
+  console.log('Bulk import completed successfully')
 }
 
 function printBarcode() {
