@@ -201,7 +201,7 @@
           </a-col>
           <a-col :span="12">
             <a-form-item label="Barcode" name="barcode">
-              <a-input v-model:value="form.barcode"  readonly   style="backgroundColor: #f5f5f5; color: #666" placeholder="Optional" />
+              <a-input v-model:value="form.barcode"  placeholder="Optional" />
             </a-form-item>
           </a-col>
         </a-row>
@@ -531,7 +531,7 @@ function generateBarcodeNumber(product) {
 function showBarcode(product) {
   console.log('Showing barcode for product:', product)
   selectedProduct.value = product
-  generatedBarcode.value = product.barcode || generateBarcodeNumber(product)
+  generatedBarcode.value = product.barcode 
   barcodeVisible.value = true
   
   // Use a longer timeout to ensure modal is rendered
