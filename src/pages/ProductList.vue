@@ -3,10 +3,26 @@
     <div class="page-header">
       <h2>👟 FootPrints - Product Management</h2>
       <div class="header-actions">
+        <!-- Barcode Scanner Status -->
+        <div class="scanner-status">
+          <a-badge :status="barcodeScanner.isListening.value ? 'processing' : 'default'" />
+          <span :style="{ color: barcodeScanner.isListening.value ? '#52c41a' : '#999' }">
+            Scanner: {{ barcodeScanner.isListening.value ? 'Active' : 'Inactive' }}
+          </span>
+          <a-button 
+            :type="barcodeScanner.isListening.value ? 'default' : 'primary'"
+            size="small"
+            @click="toggleScanner"
+            style="margin-left: 8px;"
+          >
+            {{ barcodeScanner.isListening.value ? 'Stop' : 'Start' }} Scanner
+          </a-button>
+        </div>
+        
         <a-input-search
           v-model:value="searchQuery"
-          placeholder="Search products..."
-          style="width: 300px; margin-right: 16px"
+          placeholder="Search products or scan barcode..."
+          style="width: 300px; margin: 0 16px"
           @search="handleSearch"
         />
         <a-button 
@@ -25,6 +41,28 @@
         </a-button>
       </div>
     </div>
+
+    <!-- Scanner Alert -->
+    <a-alert
+      v-if="barcodeScanner.isListening.value"
+      message="📱 Barcode Scanner Active - Scan any product barcode to add it to cart"
+      type="info"
+      show-icon
+      closable
+      style="margin-bottom: 16px"
+      @close="barcodeScanner.stopListening"
+    />
+
+    <!-- Last Scanned Product Alert -->
+    <a-alert
+      v-if="lastScannedProduct"
+      :message="`✅ Last Scanned: ${lastScannedProduct.name} - Added to cart!`"
+      type="success"
+      show-icon
+      closable
+      style="margin-bottom: 16px"
+      @close="lastScannedProduct = null"
+    />
 
     <!-- Low Stock Alert -->
     <a-alert
@@ -389,11 +427,13 @@ import { useProductStore } from "../stores/productStore"
 import BulkImport from '../components/BulkProductImport.vue'
 import { useCartStore } from "../stores/cartStore"
 import { useAuthStore } from "../stores/authStore"
+import { useBarcodeScanner } from "../composables/useBarcodeScanner"
 import JsBarcode from 'jsbarcode'
 
 const store = useProductStore()
 const cart = useCartStore()
 const authStore = useAuthStore()
+const barcodeScanner = useBarcodeScanner()
 
 const formVisible = ref(false)
 const permissionDeniedVisible = ref(false)
@@ -402,6 +442,7 @@ const editing = ref(false)
 const saving = ref(false)
 const searchQuery = ref('')
 const formRef = ref()
+const lastScannedProduct = ref(null)
 
 // Barcode related refs
 const barcodeVisible = ref(false)
@@ -419,6 +460,20 @@ const components = {
 
 const showBulkImport = ref(false)
 
+// Watch for successful barcode scans
+watch(() => barcodeScanner.lastScannedCode.value, (newCode) => {
+  if (newCode) {
+    const product = barcodeScanner.findProductByBarcode(newCode)
+    if (product) {
+      lastScannedProduct.value = product
+      // Auto-hide after 5 seconds
+      setTimeout(() => {
+        lastScannedProduct.value = null
+      }, 5000)
+    }
+  }
+})
+
 const columns = [
   { title: "Product Info", key: "product_info", width: 200, fixed: 'left' },
   { title: "Brand, Category & Supplier", key: "brand_category", width: 180 },
@@ -432,6 +487,15 @@ const rules = {
   name: [{ required: true, message: 'Please enter product name' }],
   mrp: [{ required: true, message: 'Please enter MRP' }],
   stock_quantity: [{ required: true, message: 'Please enter stock quantity' }]
+}
+
+// Toggle barcode scanner
+const toggleScanner = () => {
+  if (barcodeScanner.isListening.value) {
+    barcodeScanner.stopListening()
+  } else {
+    barcodeScanner.startListening()
+  }
 }
 
 // Computed property for calculated selling price
@@ -524,6 +588,42 @@ function handleImportComplete() {
   // Products are already refreshed in the component
   showBulkImport.value = false
   console.log('Bulk import completed successfully')
+}
+
+function generateFallbackBarcode(canvas) {
+  const ctx = canvas.getContext('2d')
+  canvas.width = 300
+  canvas.height = 80
+  
+  // Clear canvas
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  
+  // Draw simple barcode pattern
+  ctx.fillStyle = '#000000'
+  const barWidth = 2
+  const barHeight = 40
+  const startX = 20
+  const startY = 20
+  
+  // Simple pattern based on barcode digits
+  for (let i = 0; i < generatedBarcode.value.length; i++) {
+    const digit = parseInt(generatedBarcode.value[i]) || 0
+    const x = startX + (i * (barWidth + 1) * 3)
+    
+    // Draw bars based on digit value
+    for (let j = 0; j < 3; j++) {
+      if ((digit + j) % 2 === 0) {
+        ctx.fillRect(x + (j * (barWidth + 1)), startY, barWidth, barHeight)
+      }
+    }
+  }
+  
+  // Draw barcode text
+  ctx.fillStyle = '#000000'
+  ctx.font = '12px monospace'
+  ctx.textAlign = 'center'
+  ctx.fillText(generatedBarcode.value, canvas.width / 2, startY + barHeight + 20)
 }
 
 function printBarcode() {
@@ -773,6 +873,16 @@ onMounted(() => {
 .header-actions {
   display: flex;
   align-items: center;
+  gap: 12px;
+}
+
+.scanner-status {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  background-color: #fafafa;
 }
 
 .page-header h2 {

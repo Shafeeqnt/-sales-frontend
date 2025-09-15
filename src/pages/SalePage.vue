@@ -3,17 +3,66 @@
     <!-- Page Title -->
     <div class="page-header">
       <h1 class="title">🛒 FootPrints - Point of Sale</h1>
-      <a-button @click="$router.push('/products')" type="default">
-        ← Back to Products
-      </a-button>
+      
+      <div class="header-actions">
+        <!-- Barcode Scanner Status -->
+        <div class="scanner-status">
+          <a-badge :status="barcodeScanner.isListening.value ? 'processing' : 'default'" />
+          <span :style="{ color: barcodeScanner.isListening.value ? '#52c41a' : '#999' }">
+            Scanner: {{ barcodeScanner.isListening.value ? 'Active' : 'Inactive' }}
+          </span>
+          <a-button 
+            :type="barcodeScanner.isListening.value ? 'default' : 'primary'"
+            size="small"
+            @click="toggleScanner"
+            style="margin-left: 8px;"
+          >
+            {{ barcodeScanner.isListening.value ? 'Stop' : 'Start' }} Scanner
+          </a-button>
+        </div>
+        
+        <a-button @click="$router.push('/products')" type="default">
+          ← Back to Products
+        </a-button>
+      </div>
     </div>
+
+    <!-- Scanner Alert -->
+    <a-alert
+      v-if="barcodeScanner.isListening.value"
+      message="📱 Barcode Scanner Active - Scan any product barcode to add it to cart"
+      type="info"
+      show-icon
+      closable
+      style="margin-bottom: 16px"
+      @close="barcodeScanner.stopListening"
+    />
+
+    <!-- Last Scanned Product Alert -->
+    <a-alert
+      v-if="lastScannedProduct"
+      :message="`✅ Last Scanned: ${lastScannedProduct.name} - Added to cart!`"
+      type="success"
+      show-icon
+      closable
+      style="margin-bottom: 16px"
+      @close="lastScannedProduct = null"
+    />
 
     <!-- If no items in cart -->
     <div v-if="cart.isEmpty" class="empty-cart">
       <a-empty description="Your cart is empty. Add products to begin checkout.">
-        <a-button type="primary" @click="$router.push('/products')">
-          Browse Products
-        </a-button>
+        <a-space>
+          <a-button type="primary" @click="$router.push('/products')">
+            Browse Products
+          </a-button>
+          <a-button 
+            :type="barcodeScanner.isListening.value ? 'default' : 'primary'"
+            @click="toggleScanner"
+          >
+            {{ barcodeScanner.isListening.value ? 'Stop Scanner' : 'Start Barcode Scanner' }}
+          </a-button>
+        </a-space>
       </a-empty>
     </div>
 
@@ -168,6 +217,29 @@
             </a-form>
           </a-card>
 
+          <!-- Quick Actions -->
+          <a-card title="Quick Actions" bordered class="quick-actions-card">
+            <a-space direction="vertical" style="width: 100%">
+              <a-button 
+                block
+                :type="barcodeScanner.isListening.value ? 'default' : 'primary'"
+                @click="toggleScanner"
+                :icon="barcodeScanner.isListening.value ? 'stop' : 'scan'"
+              >
+                {{ barcodeScanner.isListening.value ? 'Stop Scanner' : 'Start Barcode Scanner' }}
+              </a-button>
+              
+              <a-button 
+                block
+                @click="clearCart"
+                :disabled="cart.isEmpty"
+                danger
+              >
+                Clear Cart
+              </a-button>
+            </a-space>
+          </a-card>
+
           <!-- Order Summary -->
           <a-card title="Order Summary" bordered class="summary-card">
             <div class="summary-row">
@@ -222,7 +294,7 @@
         </div>
         <h3>Sale #{{ completedSale.saleNumber }}</h3>
         <p style="font-size: 18px; margin: 16px 0;">
-          Total: ��{{ completedSale.finalAmount?.toLocaleString() }}
+          Total: ₹{{ completedSale.finalAmount?.toLocaleString() }}
         </p>
         <a-space>
           <a-button @click="successModalVisible = false">Close</a-button>
@@ -237,14 +309,17 @@
 import { ref, reactive, watch } from "vue";
 import { useCartStore } from "../stores/cartStore";
 import { useRouter } from "vue-router";
+import { useBarcodeScanner } from "../composables/useBarcodeScanner";
 import { DeleteOutlined } from '@ant-design/icons-vue';
 
 const cart = useCartStore();
 const router = useRouter();
+const barcodeScanner = useBarcodeScanner();
 
 const processing = ref(false);
 const successModalVisible = ref(false);
 const completedSale = ref({});
+const lastScannedProduct = ref(null);
 
 const customerInfo = reactive({
   name: '',
@@ -267,6 +342,20 @@ const cartColumns = [
   { title: "", key: "action", width: 50, align: 'center' }
 ];
 
+// Watch for successful barcode scans
+watch(() => barcodeScanner.lastScannedCode.value, (newCode) => {
+  if (newCode) {
+    const product = barcodeScanner.findProductByBarcode(newCode)
+    if (product) {
+      lastScannedProduct.value = product
+      // Auto-hide after 5 seconds
+      setTimeout(() => {
+        lastScannedProduct.value = null
+      }, 5000)
+    }
+  }
+})
+
 // Watch for changes in customer and sale info
 watch(customerInfo, (newVal) => {
   cart.setCustomerInfo(newVal);
@@ -275,6 +364,22 @@ watch(customerInfo, (newVal) => {
 watch(saleInfo, (newVal) => {
   cart.setSaleInfo(newVal);
 }, { deep: true });
+
+// Toggle barcode scanner
+const toggleScanner = () => {
+  if (barcodeScanner.isListening.value) {
+    barcodeScanner.stopListening()
+  } else {
+    barcodeScanner.startListening()
+  }
+}
+
+// Clear cart
+const clearCart = () => {
+  if (confirm('Are you sure you want to clear the cart?')) {
+    cart.clearCart()
+  }
+}
 
 async function handleCheckout() {
   if (cart.isEmpty) {
@@ -327,6 +432,21 @@ function startNewSale() {
   margin-bottom: 20px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.scanner-status {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  background-color: #fafafa;
+}
+
 .title {
   margin: 0;
   font-weight: bold;
@@ -342,7 +462,7 @@ function startNewSale() {
   text-align: center;
 }
 
-.cart-card, .customer-card, .sale-card, .summary-card {
+.cart-card, .customer-card, .sale-card, .summary-card, .quick-actions-card {
   margin-bottom: 16px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
