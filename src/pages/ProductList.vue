@@ -800,13 +800,21 @@ function showForm(product) {
   formVisible.value = true
 }
 
-async function handleSave() {
+async function handleSave() {debugger
   try {
     await formRef.value.validate()
     saving.value = true
     
     // Ensure the selling price is calculated before saving
     calculateSellingPrice()
+
+    // Generate barcode if adding new product and no barcode exists
+    if (!form.value.barcode) {
+      // Generate a unique 12-digit barcode based on timestamp and random numbers
+      const timestamp = Date.now().toString().slice(-6)
+      const random = Math.floor(Math.random() * 999999).toString().padStart(6, '0')
+      form.value.barcode = `${timestamp}${random}`
+    }
     
     let savedProduct
     if (editing.value) {
