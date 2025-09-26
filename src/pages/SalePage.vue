@@ -308,11 +308,13 @@
 <script setup>
 import { ref, reactive, watch } from "vue";
 import { useCartStore } from "../stores/cartStore";
+import { useProductStore } from "../stores/productStore"; // Add this import
 import { useRouter } from "vue-router";
 import { useBarcodeScanner } from "../composables/useBarcodeScanner";
 import { DeleteOutlined } from '@ant-design/icons-vue';
 
 const cart = useCartStore();
+const productStore = useProductStore(); //
 const router = useRouter();
 const barcodeScanner = useBarcodeScanner();
 
@@ -342,8 +344,41 @@ const cartColumns = [
   { title: "", key: "action", width: 50, align: 'center' }
 ];
 
+const debugBarcodeScan = (barcode) => {debugger
+  console.log('🔍 Debugging barcode scan:', barcode);
+  const product = barcodeScanner.findProductByBarcode(barcode);
+  console.log('📦 Product found:', product);
+  
+  if (product) {
+    // Test the actual scan process
+    barcodeScanner.processScan(barcode);
+    // Update UI
+    lastScannedProduct.value = product;
+    console.log('✅ Product added to cart via debug');
+  } else {
+    console.log('❌ Product not found for barcode:', barcode);
+    // Show available products for debugging
+    console.log('📋 Available products:', productStore.products.map(p => ({
+      name: p.name,
+      barcode: p.barcode,
+      product_code: p.product_code,
+      id: p.id
+    })));
+  }
+};
+
+// Expose to window for console access
+window.debugBarcodeScan = debugBarcodeScan;
+
+// Also expose the scanner itself for more control
+window.barcodeScanner = barcodeScanner;
+window.cartStore = cart;
+
+console.log('🐛 Debug functions loaded!');
+console.log('Available commands: debugBarcodeScan(barcode), barcodeScanner, cartStore');
+
 // Watch for successful barcode scans
-watch(() => barcodeScanner.lastScannedCode.value, (newCode) => {
+watch(() => barcodeScanner.lastScannedCode.value, (newCode) => {debugger
   if (newCode) {
     const product = barcodeScanner.findProductByBarcode(newCode)
     if (product) {

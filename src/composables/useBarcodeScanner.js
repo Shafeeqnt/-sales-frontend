@@ -66,12 +66,16 @@ export function useBarcodeScanner() {
 
   // Find product by barcode
   const findProductByBarcode = (barcode) => {
+
+    const cleanBarcode = barcode.trim().toUpperCase(); // Convert to uppercase for comparison
+
     return productStore.products.find(product => {
       // Check both barcode field and generated barcode
-      return product.barcode === barcode || 
-             generateBarcodeNumber(product) === barcode ||
-             product.product_code === barcode
-    })
+      return (product.barcode && product.barcode.toUpperCase() === cleanBarcode) || 
+           (generateBarcodeNumber(product).toUpperCase() === cleanBarcode) ||
+           (product.product_code && product.product_code.toUpperCase() === cleanBarcode);
+
+    });
   }
   
   // Generate barcode number for product (same logic as in ProductManagement)
