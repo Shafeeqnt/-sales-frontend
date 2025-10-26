@@ -39,8 +39,11 @@
         >
           + Add Product
         </a-button>
+      
       </div>
     </div>
+
+    
 
     <!-- Scanner Alert -->
     <a-alert
@@ -178,6 +181,14 @@
             >
               Add to Sale
             </a-button>
+            <a-button 
+              v-if="authStore.canManageProducts()" 
+              type="dashed" 
+              @click="showSizeVariantModal(record)" 
+              size="small"
+            >
+              📏 Size Variants
+          </a-button>
           </a-space>
         </template>
       </template>
@@ -418,6 +429,13 @@
       v-model:visible="showBulkImport" 
       @import-complete="handleImportComplete"
     />
+
+    <!-- Size Variant Duplicator -->
+    <SizeVariantDuplicator 
+      v-model:visible="showSizeVariant" 
+      :product="selectedProductForVariant"
+      @duplicate-complete="handleVariantDuplication"
+    />
   </div>
 </template>
 
@@ -425,6 +443,7 @@
 import { ref, onMounted, computed, watch, nextTick } from "vue"
 import { useProductStore } from "../stores/productStore"
 import BulkImport from '../components/BulkProductImport.vue'
+import SizeVariantDuplicator from '../components/SizeVariantDuplicator.vue'
 import { useCartStore } from "../stores/cartStore"
 import { useAuthStore } from "../stores/authStore"
 import { useBarcodeScanner } from "../composables/useBarcodeScanner"
@@ -455,11 +474,13 @@ const newProductId = ref(null)
 
 
 const components = {
-  BulkImport
+  BulkImport,
+  SizeVariantDuplicator
 }
 
 const showBulkImport = ref(false)
-
+const showSizeVariant = ref(false)
+const selectedProductForVariant = ref(null)
 // Watch for successful barcode scans
 watch(() => barcodeScanner.lastScannedCode.value, (newCode) => {
   if (newCode) {
@@ -518,6 +539,19 @@ const filteredProducts = computed(() => {
 const lowStockProducts = computed(() => {
   return store.getLowStockProducts()
 })
+
+function showSizeVariantModal(product) {
+  selectedProductForVariant.value = product
+  showSizeVariant.value = true
+}
+
+async function handleVariantDuplication(products) {
+  for (const product of products) {
+    await store.addProduct(product)
+  }
+  await store.fetchProducts()
+  showSizeVariant.value = false
+}
 
 // Barcode Functions
 function generateBarcodeNumber(product) {
