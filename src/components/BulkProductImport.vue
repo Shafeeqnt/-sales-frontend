@@ -354,6 +354,13 @@ async function startImport() {
       // Remove validation data before sending to store
       const { _validation, _rowIndex, ...cleanProduct } = product
       
+      // Generate barcode if not provided
+      if (!cleanProduct.barcode) {
+        const timestamp = Date.now().toString().slice(-6)
+        const random = Math.floor(Math.random() * 999999).toString().padStart(6, '0')
+        cleanProduct.barcode = `${timestamp}${random}`
+      }
+      
       const result = await productStore.addProduct(cleanProduct)
       
       importResults.value.push({
