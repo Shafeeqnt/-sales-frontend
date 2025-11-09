@@ -1,6 +1,6 @@
 <template>
   <div class="checkout-page">
-    <!-- Page Title -->
+    <!-- Page Header -->
     <div class="page-header">
       <h1 class="title">🛒 FootPrints - Point of Sale</h1>
       
@@ -298,6 +298,7 @@
         </p>
         <a-space>
           <a-button @click="successModalVisible = false">Close</a-button>
+          <a-button type="default" @click="printBill">🖨️ Print Bill</a-button>
           <a-button type="primary" @click="startNewSale">New Sale</a-button>
         </a-space>
       </div>
@@ -308,13 +309,13 @@
 <script setup>
 import { ref, reactive, watch } from "vue";
 import { useCartStore } from "../stores/cartStore";
-import { useProductStore } from "../stores/productStore"; // Add this import
+import { useProductStore } from "../stores/productStore";
 import { useRouter } from "vue-router";
 import { useBarcodeScanner } from "../composables/useBarcodeScanner";
 import { DeleteOutlined } from '@ant-design/icons-vue';
 
 const cart = useCartStore();
-const productStore = useProductStore(); //
+const productStore = useProductStore();
 const router = useRouter();
 const barcodeScanner = useBarcodeScanner();
 
@@ -344,20 +345,17 @@ const cartColumns = [
   { title: "", key: "action", width: 50, align: 'center' }
 ];
 
-const debugBarcodeScan = (barcode) => {debugger
+const debugBarcodeScan = (barcode) => {
   console.log('🔍 Debugging barcode scan:', barcode);
   const product = barcodeScanner.findProductByBarcode(barcode);
   console.log('📦 Product found:', product);
   
   if (product) {
-    // Test the actual scan process
     barcodeScanner.processScan(barcode);
-    // Update UI
     lastScannedProduct.value = product;
     console.log('✅ Product added to cart via debug');
   } else {
     console.log('❌ Product not found for barcode:', barcode);
-    // Show available products for debugging
     console.log('📋 Available products:', productStore.products.map(p => ({
       name: p.name,
       barcode: p.barcode,
@@ -369,8 +367,6 @@ const debugBarcodeScan = (barcode) => {debugger
 
 // Expose to window for console access
 window.debugBarcodeScan = debugBarcodeScan;
-
-// Also expose the scanner itself for more control
 window.barcodeScanner = barcodeScanner;
 window.cartStore = cart;
 
@@ -378,12 +374,11 @@ console.log('🐛 Debug functions loaded!');
 console.log('Available commands: debugBarcodeScan(barcode), barcodeScanner, cartStore');
 
 // Watch for successful barcode scans
-watch(() => barcodeScanner.lastScannedCode.value, (newCode) => {debugger
+watch(() => barcodeScanner.lastScannedCode.value, (newCode) => {
   if (newCode) {
     const product = barcodeScanner.findProductByBarcode(newCode)
     if (product) {
       lastScannedProduct.value = product
-      // Auto-hide after 5 seconds
       setTimeout(() => {
         lastScannedProduct.value = null
       }, 5000)
@@ -424,16 +419,40 @@ async function handleCheckout() {
   processing.value = true;
   
   try {
+    // CRITICAL: Store cart data BEFORE completing sale (cart will be cleared after)
+    const savedCartData = {
+      items: cart.items.map(item => ({
+        product_name: item.product_name,
+        product_code: item.product_code,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+        mrp: item.mrp
+      })),
+      subtotal: cart.subtotal,
+      totalAmount: cart.totalAmount,
+      totalSavings: cart.totalSavings,
+      discount: Number(saleInfo.discount_amount) || 0,
+      tax: Number(saleInfo.tax_amount) || 0,
+      payment: saleInfo.payment_method
+    };
+    
+    console.log('Saved cart data before sale:', savedCartData);
+    
     const result = await cart.completeSale();
     
     if (result.success) {
-      completedSale.value = result;
+      completedSale.value = {
+        saleNumber: result.saleNumber,
+        finalAmount: result.finalAmount,
+        ...savedCartData
+      };
+      console.log('completedSale after checkout:', completedSale.value);
       successModalVisible.value = true;
     }
   } catch (error) {
     console.error('Checkout failed:', error);
     
-    // Show user-friendly error message
     let errorMessage = 'An error occurred during checkout.';
     if (error.message.includes('stock')) {
       errorMessage = 'Some items are out of stock. Please check your cart.';
@@ -450,6 +469,260 @@ async function handleCheckout() {
 function startNewSale() {
   successModalVisible.value = false;
   router.push('/products');
+}
+
+function printBill() {
+  console.log('🖨️ Printing bill. completedSale:', completedSale.value);
+  
+  const billDate = new Date().toLocaleString('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  // Get data directly from completedSale (saved before cart was cleared)
+  const subtotal = completedSale.value.subtotal || 0;
+  const discount = completedSale.value.discount || 0;
+  const tax = completedSale.value.tax || 0;
+  const grandTotal = completedSale.value.finalAmount || 0;
+  const paymentMethod = completedSale.value.payment || 'cash';
+
+  // Build items HTML
+  let itemsHTML = '';
+  const items = completedSale.value.items || [];
+  
+  console.log('📦 Items to print:', items);
+  
+  if (items.length === 0) {
+    console.error('❌ No items found in completedSale!');
+    alert('Error: No items to print. Please try again.');
+    return;
+  }
+  
+  items.forEach(item => {
+    const itemTotal = (item.unit_price * item.quantity).toFixed(2);
+    itemsHTML += `
+      <tr>
+        <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd;">${item.product_name}</td>
+        <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: center;">${item.quantity}</td>
+        <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: right;">₹${Number(item.unit_price).toFixed(2)}</td>
+        <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: right;">₹${itemTotal}</td>
+      </tr>
+    `;
+  });
+
+  const printHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Bill - ${completedSale.value.saleNumber}</title>
+      <style>
+        @media print {
+          @page {
+            size: 33cm auto;
+            margin: 0;
+          }
+          body {
+            margin: 0;
+            padding: 0;
+          }
+        }
+        
+        body {
+          font-family: 'Courier New', monospace;
+          width: 33cm;
+          margin: 0 auto;
+          padding: 1cm;
+          font-size: 14px;
+        }
+        
+        .bill-container {
+          width: 100%;
+        }
+        
+        .header {
+          text-align: center;
+          margin-bottom: 15px;
+          border-bottom: 2px solid #000;
+          padding-bottom: 15px;
+        }
+        
+        .store-name {
+          font-size: 24px;
+          font-weight: bold;
+          margin: 0;
+        }
+        
+        .store-tagline {
+          font-size: 14px;
+          margin: 2px 0;
+          color: #666;
+        }
+        
+        .bill-info {
+          margin: 15px 0;
+          font-size: 14px;
+        }
+        
+        .bill-info-row {
+          display: flex;
+          justify-content: space-between;
+          margin: 4px 0;
+        }
+        
+        .separator {
+          border-top: 1px dashed #000;
+          margin: 10px 0;
+        }
+        
+        .items-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 15px 0;
+        }
+        
+        .items-table th {
+          text-align: left;
+          padding: 8px 4px;
+          border-bottom: 2px solid #000;
+          font-weight: bold;
+          font-size: 14px;
+        }
+        
+        .items-table td {
+          padding: 8px 4px;
+          font-size: 14px;
+        }
+        
+        .totals {
+          margin-top: 15px;
+          padding-top: 15px;
+          border-top: 2px solid #000;
+        }
+        
+        .total-row {
+          display: flex;
+          justify-content: space-between;
+          margin: 6px 0;
+          font-size: 14px;
+        }
+        
+        .grand-total {
+          font-weight: bold;
+          font-size: 18px;
+          padding-top: 10px;
+          border-top: 2px solid #000;
+          margin-top: 10px;
+        }
+        
+        .footer {
+          text-align: center;
+          margin-top: 20px;
+          padding-top: 15px;
+          border-top: 1px dashed #000;
+          font-size: 14px;
+        }
+        
+        .footer-note {
+          margin: 6px 0;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="bill-container">
+        <!-- Header -->
+        <div class="header">
+          <div style="font-size: 24px;">👟</div>
+          <h1 class="store-name">FootPrints</h1>
+          <div class="store-tagline">Point of Sale System</div>
+        </div>
+        
+        <!-- Bill Information -->
+        <div class="bill-info">
+          <div class="bill-info-row">
+            <span>Bill No:</span>
+            <span><strong>${completedSale.value.saleNumber}</strong></span>
+          </div>
+          <div class="bill-info-row">
+            <span>Time:</span>
+            <span>${billDate}</span>
+          </div>
+        </div>
+        
+        <div class="separator"></div>
+        
+        <!-- Items Table -->
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th style="width: 45%;">Item</th>
+              <th style="width: 15%; text-align: center;">Qty</th>
+              <th style="width: 20%; text-align: right;">Price</th>
+              <th style="width: 20%; text-align: right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHTML}
+          </tbody>
+        </table>
+        
+        <div class="separator"></div>
+        
+        <!-- Totals -->
+        <div class="totals">
+          <div class="total-row">
+            <span>Subtotal:</span>
+            <span>₹${Number(subtotal).toFixed(2)}</span>
+          </div>
+          ${discount > 0 ? `
+          <div class="total-row">
+            <span>Discount:</span>
+            <span>-₹${Number(discount).toFixed(2)}</span>
+          </div>
+          ` : ''}
+          ${tax > 0 ? `
+          <div class="total-row">
+            <span>Tax:</span>
+            <span>+₹${Number(tax).toFixed(2)}</span>
+          </div>
+          ` : ''}
+          <div class="total-row grand-total">
+            <span>Grand Total:</span>
+            <span>₹${Number(grandTotal).toFixed(2)}</span>
+          </div>
+          <div class="total-row" style="margin-top: 8px;">
+            <span>Payment Method:</span>
+            <span style="text-transform: uppercase;">${paymentMethod.toUpperCase()}</span>
+          </div>
+        </div>
+        
+        <div class="separator"></div>
+        
+        <!-- Footer -->
+        <div class="footer">
+          <div class="footer-note">Thank you for your purchase!</div>
+          <div class="footer-note">Visit again 🙏</div>
+          <div class="footer-note" style="margin-top: 8px; font-size: 12px;">
+            Powered by FootPrints POS
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  // Open print window with larger dimensions
+  const printWindow = window.open('', '_blank', 'width=1200,height=800');
+  printWindow.document.write(printHTML);
+  printWindow.document.close();
+  
+  // Wait for content to load, then print
+  setTimeout(() => {
+    printWindow.print();
+  }, 500);
 }
 </script>
 
