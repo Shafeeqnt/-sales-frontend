@@ -519,10 +519,10 @@ function printBill() {
     <html>
     <head>
       <title>Bill - ${completedSale.value.saleNumber}</title>
-      <style>
+       <style>
         @media print {
           @page {
-            size: 33cm auto;
+            size: 80mm auto;
             margin: 0;
           }
           body {
@@ -533,10 +533,10 @@ function printBill() {
         
         body {
           font-family: 'Courier New', monospace;
-          width: 33cm;
+          width: 80mm;
           margin: 0 auto;
-          padding: 1cm;
-          font-size: 14px;
+          padding: 2mm;
+          font-size: 11px;
         }
         
         .bill-container {
