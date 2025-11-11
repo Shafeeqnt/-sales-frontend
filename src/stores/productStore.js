@@ -11,17 +11,54 @@ export const useProductStore = defineStore('product', {
     async fetchProducts() {
       this.loading = true
       try {
-        const { data, error } = await supabase
-          .from('products')
-          .select('*')
-          .order('created_at', { ascending: false })
+        let allProducts = []
+        let hasMore = true
+        let page = 0
+        const pageSize = 1000
         
-        if (error) {
-          console.error('Error fetching products:', error)
-          this.products = []
-        } else {
-          this.products = data || []
+        console.log('Starting to fetch all products...')
+        
+        while (hasMore) {
+          const from = page * pageSize
+          const to = from + pageSize - 1
+          
+          console.log(`Fetching page ${page + 1} (${from}-${to})...`)
+          
+          const { data, error, count } = await supabase
+            .from('products')
+            .select('*', { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .range(from, to)
+          
+          if (error) {
+            console.error('Error fetching products:', error)
+            break
+          }
+          
+          if (data && data.length > 0) {
+            allProducts = [...allProducts, ...data]
+            console.log(`Fetched ${data.length} products. Total so far: ${allProducts.length}`)
+            page++
+            
+            // If we got less than pageSize, we've reached the end
+            if (data.length < pageSize) {
+              hasMore = false
+              console.log('Reached end of products')
+            }
+          } else {
+            hasMore = false
+            console.log('No more products to fetch')
+          }
+          
+          // Safety check: if we have the exact count, stop when we reach it
+          if (count && allProducts.length >= count) {
+            hasMore = false
+            console.log(`Fetched all ${count} products`)
+          }
         }
+        
+        this.products = allProducts
+        console.log(`✅ Successfully fetched ALL products: ${this.products.length}`)
       } catch (err) {
         console.error('Network error:', err)
         this.products = []
@@ -206,19 +243,39 @@ export const useProductStore = defineStore('product', {
       )
     },
 
-    // Search products
+    // Search products with improved null handling
     searchProducts(query) {
-      if (!query) return this.products
+      if (!query || query.trim() === '') return this.products
       
-      const searchTerm = query.toLowerCase()
-      return this.products.filter(product =>
-        product.name.toLowerCase().includes(searchTerm) ||
-        product.product_code.toLowerCase().includes(searchTerm) ||
-        product.brand?.toLowerCase().includes(searchTerm) ||
-        product.category?.toLowerCase().includes(searchTerm) ||
-        product.supplier?.toLowerCase().includes(searchTerm) ||
-        product.barcode?.toLowerCase().includes(searchTerm)
-      )
+      const searchTerm = query.toLowerCase().trim()
+      console.log('Searching for:', searchTerm)
+      console.log('Total products:', this.products.length)
+      
+      const results = this.products.filter(product => {
+        // Ensure all fields are strings and handle null/undefined values
+        const name = (product.name || '').toLowerCase()
+        const productCode = (product.product_code || '').toLowerCase()
+        const brand = (product.brand || '').toLowerCase()
+        const category = (product.category || '').toLowerCase()
+        const supplier = (product.supplier || '').toLowerCase()
+        const barcode = (product.barcode || '').toLowerCase()
+        const size = (product.size || '').toLowerCase()
+        const color = (product.color || '').toLowerCase()
+        
+        const matches = name.includes(searchTerm) ||
+               productCode.includes(searchTerm) ||
+               brand.includes(searchTerm) ||
+               category.includes(searchTerm) ||
+               supplier.includes(searchTerm) ||
+               barcode.includes(searchTerm) ||
+               size.includes(searchTerm) ||
+               color.includes(searchTerm)
+        
+        return matches
+      })
+      
+      console.log('Search results:', results.length)
+      return results
     },
 
     // Calculate selling price helper
