@@ -502,12 +502,13 @@ function printBill() {
     return;
   }
   
-  items.forEach(item => {
+  items.forEach(item => {debugger
     const itemTotal = (item.unit_price * item.quantity).toFixed(2);
     itemsHTML += `
       <tr>
         <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd;">${item.product_name}</td>
         <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: center;">${item.quantity}</td>
+        <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: right;">₹${Number(item.mrp).toFixed(2)}</td>
         <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: right;">₹${Number(item.unit_price).toFixed(2)}</td>
         <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: right;">₹${itemTotal}</td>
       </tr>
@@ -557,7 +558,12 @@ function printBill() {
         }
         
         .store-tagline {
-          font-size: 14px;
+          font-size: 13px;
+          margin: 2px 0;
+          color: #666;
+        }
+        .store-location-tagline {
+          font-size: 12px;
           margin: 2px 0;
           color: #666;
         }
@@ -637,7 +643,8 @@ function printBill() {
         <div class="header">
           <div style="font-size: 24px;">👟</div>
           <h1 class="store-name">FootPrints</h1>
-          <div class="store-tagline">Point of Sale System</div>
+          <div class="store-tagline">A place for genuine leather.</div>
+          <div class="store-location-tagline">Kalayapuram, Ph:9947141283</div>
         </div>
         
         <!-- Bill Information -->
@@ -659,9 +666,10 @@ function printBill() {
           <thead>
             <tr>
               <th style="width: 45%;">Item</th>
-              <th style="width: 15%; text-align: center;">Qty</th>
-              <th style="width: 20%; text-align: right;">Price</th>
-              <th style="width: 20%; text-align: right;">Total</th>
+              <th style="width: 10%; text-align: center;">Qty</th>
+              <th style="width: 15%; text-align: right;">MRP</th>
+              <th style="width: 15%; text-align: right;">Disc Rate</th>
+              <th style="width: 15%; text-align: right;">Total</th>
             </tr>
           </thead>
           <tbody>
