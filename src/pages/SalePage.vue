@@ -471,6 +471,8 @@ function startNewSale() {
   router.push('/products');
 }
 
+// Replace your existing printBill() function in CheckoutPage.vue with this:
+
 function printBill() {
   console.log('🖨️ Printing bill. completedSale:', completedSale.value);
   
@@ -483,17 +485,13 @@ function printBill() {
     hour12: true
   });
 
-  // Get data directly from completedSale (saved before cart was cleared)
-  const subtotal = completedSale.value.subtotal || 0;
+  // Get data from completedSale
+  const items = completedSale.value.items || [];
   const discount = completedSale.value.discount || 0;
   const tax = completedSale.value.tax || 0;
   const grandTotal = completedSale.value.finalAmount || 0;
   const paymentMethod = completedSale.value.payment || 'cash';
 
-  // Build items HTML
-  let itemsHTML = '';
-  const items = completedSale.value.items || [];
-  
   console.log('📦 Items to print:', items);
   
   if (items.length === 0) {
@@ -502,18 +500,35 @@ function printBill() {
     return;
   }
   
-  items.forEach(item => {debugger
-    const itemTotal = (item.unit_price * item.quantity).toFixed(2);
+  // Calculate totals
+  let totalMRP = 0;
+  let subtotalAfterDiscount = 0;
+  let productSavings = 0;
+  
+  // Build items HTML and calculate savings
+  let itemsHTML = '';
+  items.forEach(item => {
+    const itemMRP = Number(item.mrp) * Number(item.quantity);
+    const itemTotal = Number(item.unit_price) * Number(item.quantity);
+    const itemSavings = itemMRP - itemTotal;
+    
+    totalMRP += itemMRP;
+    subtotalAfterDiscount += itemTotal;
+    productSavings += itemSavings;
+    
     itemsHTML += `
       <tr>
         <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd;">${item.product_name}</td>
         <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: center;">${item.quantity}</td>
         <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: right;">₹${Number(item.mrp).toFixed(2)}</td>
         <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: right;">₹${Number(item.unit_price).toFixed(2)}</td>
-        <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: right;">₹${itemTotal}</td>
+        <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: right;">₹${itemTotal.toFixed(2)}</td>
       </tr>
     `;
   });
+  
+  // Calculate total savings (product discounts + additional discount)
+  const totalSavings = productSavings + discount;
 
   const printHTML = `
     <!DOCTYPE html>
@@ -616,6 +631,25 @@ function printBill() {
           font-size: 14px;
         }
         
+        .savings-row {
+          display: flex;
+          justify-content: space-between;
+          margin: 6px 0;
+          font-size: 14px;
+          color: #2d7c2d;
+          font-weight: 500;
+        }
+        
+        .savings-highlight {
+          background: #f0f0f0;
+          padding: 8px;
+          margin: 10px 0;
+          border-radius: 4px;
+          text-align: center;
+          font-weight: bold;
+          font-size: 15px;
+        }
+        
         .grand-total {
           font-weight: bold;
           font-size: 18px;
@@ -682,12 +716,22 @@ function printBill() {
         <!-- Totals -->
         <div class="totals">
           <div class="total-row">
+            <span>Total MRP:</span>
+            <span>₹${Number(totalMRP).toFixed(2)}</span>
+          </div>
+          ${productSavings > 0 ? `
+          <div class="savings-row">
+            <span>Product Discounts:</span>
+            <span>-₹${Number(productSavings).toFixed(2)}</span>
+          </div>
+          ` : ''}
+          <div class="total-row">
             <span>Subtotal:</span>
-            <span>₹${Number(subtotal).toFixed(2)}</span>
+            <span>₹${Number(subtotalAfterDiscount).toFixed(2)}</span>
           </div>
           ${discount > 0 ? `
-          <div class="total-row">
-            <span>Discount:</span>
+          <div class="savings-row">
+            <span>Additional Discount:</span>
             <span>-₹${Number(discount).toFixed(2)}</span>
           </div>
           ` : ''}
@@ -697,6 +741,13 @@ function printBill() {
             <span>+₹${Number(tax).toFixed(2)}</span>
           </div>
           ` : ''}
+          
+          ${totalSavings > 0 ? `
+          <div class="savings-highlight">
+            🎉 You Saved: ₹${Number(totalSavings).toFixed(2)}
+          </div>
+          ` : ''}
+          
           <div class="total-row grand-total">
             <span>Grand Total:</span>
             <span>₹${Number(grandTotal).toFixed(2)}</span>
@@ -722,7 +773,7 @@ function printBill() {
     </html>
   `;
 
-  // Open print window with larger dimensions
+  // Open print window
   const printWindow = window.open('', '_blank', 'width=1200,height=800');
   printWindow.document.write(printHTML);
   printWindow.document.close();
