@@ -28,6 +28,10 @@
           <ShoppingCartOutlined />
           <span>Sales</span>
         </a-menu-item>
+        <a-menu-item key="sales-summary" @click="goTo('/sales-summary')">
+          <BarChartOutlined />
+          <span>Sales Summary</span>
+        </a-menu-item>
       </a-menu>
     </a-layout-sider>
 
@@ -96,6 +100,7 @@ import { message } from 'ant-design-vue'
 import {
   AppstoreOutlined,
   ShoppingCartOutlined,
+  BarChartOutlined,
   MenuUnfoldOutlined,
   MenuFoldOutlined,
   UserOutlined,
@@ -115,7 +120,13 @@ const selectedKey = ref("products")
 watch(
   () => route.path,
   (path) => {
-    selectedKey.value = path.includes("sales") ? "sales" : "products"
+    if (path.includes("sales-summary")) {
+      selectedKey.value = "sales-summary"
+    } else if (path.includes("sales")) {
+      selectedKey.value = "sales"
+    } else {
+      selectedKey.value = "products"
+    }
   },
   { immediate: true }
 )

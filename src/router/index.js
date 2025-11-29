@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore'
 import Login from '../pages/Login.vue'
 import ProductList from '../pages/ProductList.vue'
 import SalePage from '../pages/SalePage.vue'
+import SalesSummary from '../pages/SalesSummary.vue'
 
 const routes = [
   { 
@@ -26,6 +27,12 @@ const routes = [
     path: '/sales', 
     name: 'Sales',
     component: SalePage,
+    meta: { requiresAuth: true }
+  },
+  { 
+    path: '/sales-summary', 
+    name: 'SalesSummary',
+    component: SalesSummary,
     meta: { requiresAuth: true }
   }
 ]
