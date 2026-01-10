@@ -22,7 +22,11 @@ export const useCartStore = defineStore("cartStore", {
     // Add product to cart
     addToCart(product) {
       console.log('Adding product to cart:', product)
-      const existing = this.items.find((item) => item.product_id === product.id)
+      // For custom products (temporary IDs starting with 'custom-'), find by product_code instead
+      const isCustomProduct = product.id && product.id.toString().startsWith('custom-')
+      const existing = isCustomProduct 
+        ? this.items.find((item) => item.product_code === product.product_code && item.product_id && item.product_id.toString().startsWith('custom-'))
+        : this.items.find((item) => item.product_id === product.id)
       
       if (existing) {
         if (existing.quantity < product.stock_quantity) {
@@ -50,13 +54,13 @@ export const useCartStore = defineStore("cartStore", {
 
         const newItem = {
           id: Date.now(), // temporary ID for local cart
-          product_id: product.id,
+          product_id: isCustomProduct ? null : product.id, // null for custom products
           product_code: product.product_code,
           product_name: product.name,
           quantity: 1,
           unit_price: sellingPrice,
           total_price: sellingPrice,
-          available_stock: product.stock_quantity,
+          available_stock: isCustomProduct ? 9999 : product.stock_quantity, // High stock for custom items
           mrp: mrp,
           discount_amount: discountAmount,
           discount_percentage: discountPercentage,
@@ -174,9 +178,10 @@ export const useCartStore = defineStore("cartStore", {
         console.log('Sale created:', sale);
 
         // Step 2: Create sale items
+        // Note: product_id can be null for custom products (not in products table)
         const saleItems = this.items.map((item) => ({
           sale_id: sale.id,
-          product_id: item.product_id,
+          product_id: item.product_id || null, // null for custom products
           product_code: item.product_code,
           product_name: item.product_name,
           quantity: item.quantity,

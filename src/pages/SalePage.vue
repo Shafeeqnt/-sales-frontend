@@ -53,6 +53,9 @@
     <div v-if="cart.isEmpty" class="empty-cart">
       <a-empty description="Your cart is empty. Add products to begin checkout.">
         <a-space>
+          <a-button type="primary" @click="showCustomProductModal = true">
+            + Add Custom Product
+          </a-button>
           <a-button type="primary" @click="$router.push('/products')">
             Browse Products
           </a-button>
@@ -222,6 +225,14 @@
             <a-space direction="vertical" style="width: 100%">
               <a-button 
                 block
+                type="primary"
+                @click="showCustomProductModal = true"
+              >
+                + Add Custom Product
+              </a-button>
+              
+              <a-button 
+                block
                 :type="barcodeScanner.isListening.value ? 'default' : 'primary'"
                 @click="toggleScanner"
                 :icon="barcodeScanner.isListening.value ? 'stop' : 'scan'"
@@ -281,6 +292,84 @@
       </a-row>
     </div>
 
+    <!-- Add Custom Product Modal -->
+    <a-modal
+      v-model:open="showCustomProductModal"
+      title="Add Custom Product"
+      @ok="handleAddCustomProduct"
+      width="600px"
+      :ok-button-props="{ loading: addingCustomProduct }"
+      ok-text="Add to Cart"
+    >
+      <a-form :model="customProductForm" layout="vertical" ref="customProductFormRef">
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item label="Product Name" required>
+              <a-input 
+                v-model:value="customProductForm.name" 
+                placeholder="Enter product name"
+              />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="Product Code">
+              <a-input 
+                v-model:value="customProductForm.product_code" 
+                placeholder="Auto-generated if empty"
+              />
+            </a-form-item>
+          </a-col>
+        </a-row>
+
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item label="MRP (₹)" required>
+              <a-input-number 
+                v-model:value="customProductForm.mrp" 
+                style="width: 100%"
+                :min="0"
+                :precision="2"
+                @change="calculateCustomSellingPrice"
+              />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="Discount (%)">
+              <a-input-number 
+                v-model:value="customProductForm.discount_percentage" 
+                style="width: 100%"
+                :min="0"
+                :max="100"
+                @change="calculateCustomSellingPrice"
+              />
+            </a-form-item>
+          </a-col>
+        </a-row>
+
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item label="Selling Price (₹)" required>
+              <a-input-number 
+                v-model:value="customProductForm.price" 
+                style="width: 100%"
+                :min="0"
+                :precision="2"
+              />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="Quantity" required>
+              <a-input-number 
+                v-model:value="customProductForm.quantity" 
+                style="width: 100%"
+                :min="1"
+              />
+            </a-form-item>
+          </a-col>
+        </a-row>
+      </a-form>
+    </a-modal>
+
     <!-- Success Modal -->
     <a-modal
       v-model:open="successModalVisible"
@@ -313,6 +402,7 @@ import { useProductStore } from "../stores/productStore";
 import { useRouter } from "vue-router";
 import { useBarcodeScanner } from "../composables/useBarcodeScanner";
 import { DeleteOutlined } from '@ant-design/icons-vue';
+import { message } from 'ant-design-vue';
 
 const cart = useCartStore();
 const productStore = useProductStore();
@@ -323,6 +413,18 @@ const processing = ref(false);
 const successModalVisible = ref(false);
 const completedSale = ref({});
 const lastScannedProduct = ref(null);
+const showCustomProductModal = ref(false);
+const addingCustomProduct = ref(false);
+const customProductFormRef = ref(null);
+
+const customProductForm = reactive({
+  name: '',
+  product_code: '',
+  mrp: null,
+  discount_percentage: 0,
+  price: null,
+  quantity: 1
+});
 
 const customerInfo = reactive({
   name: '',
@@ -472,6 +574,70 @@ function startNewSale() {
 }
 
 // Replace your existing printBill() function in CheckoutPage.vue with this:
+
+const calculateCustomSellingPrice = () => {
+  const mrp = Number(customProductForm.mrp) || 0;
+  const discount = Number(customProductForm.discount_percentage) || 0;
+  customProductForm.price = Number((mrp * (1 - discount / 100)).toFixed(2));
+};
+
+const handleAddCustomProduct = async () => {
+  try {
+    if (!customProductForm.name || !customProductForm.price || !customProductForm.quantity) {
+      message.error('Please fill all required fields (Name, Price, Quantity)');
+      return;
+    }
+
+    addingCustomProduct.value = true;
+
+    // Generate product code if not provided
+    if (!customProductForm.product_code) {
+      const timestamp = Date.now().toString().slice(-6);
+      customProductForm.product_code = `CUSTOM-${timestamp}`;
+    }
+
+    // Create a custom product object for cart
+    const customProduct = {
+      id: `custom-${Date.now()}`, // Temporary ID for custom products
+      product_code: customProductForm.product_code,
+      name: customProductForm.name,
+      mrp: Number(customProductForm.mrp) || 0,
+      price: Number(customProductForm.price),
+      discount_percentage: Number(customProductForm.discount_percentage) || 0,
+      stock_quantity: 9999, // High stock for custom items (won't update actual stock)
+    };
+
+    // Add to cart - add once, then update quantity to desired amount
+    cart.addToCart(customProduct);
+    
+    // Find the added item and update quantity (custom products have null product_id)
+    const addedItem = cart.items.find(item => 
+      item.product_code === customProduct.product_code && 
+      item.product_name === customProduct.name &&
+      (!item.product_id || (item.product_id && item.product_id.toString().startsWith('custom-')))
+    );
+    if (addedItem && addedItem.quantity === 1) {
+      cart.updateQuantity(addedItem.id, customProductForm.quantity);
+    }
+
+    message.success(`Added ${customProductForm.quantity} x ${customProductForm.name} to cart`);
+    
+    // Reset form
+    customProductForm.name = '';
+    customProductForm.product_code = '';
+    customProductForm.mrp = null;
+    customProductForm.discount_percentage = 0;
+    customProductForm.price = null;
+    customProductForm.quantity = 1;
+    
+    showCustomProductModal.value = false;
+  } catch (error) {
+    console.error('Error adding custom product:', error);
+    message.error('Failed to add custom product');
+  } finally {
+    addingCustomProduct.value = false;
+  }
+};
 
 function printBill() {
   console.log('🖨️ Printing bill. completedSale:', completedSale.value);
