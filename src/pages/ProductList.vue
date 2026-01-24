@@ -279,6 +279,17 @@
                 v-model:value="form.stock_price" 
                 style="width: 100%" 
               />
+              <div v-if="form.mrp && form.stock_price && form.stock_price > 0" style="font-size: 12px; margin-top: 4px;">
+                <span v-if="form.mrp > form.stock_price" style="color: #52c41a; font-weight: 500;">
+                  Profit Margin: {{ calculateProfitMargin(form.mrp, form.stock_price) }}%
+                </span>
+                <span v-else-if="form.mrp < form.stock_price" style="color: #ff4d4f; font-weight: 500;">
+                  Loss: {{ Math.abs(calculateProfitMargin(form.mrp, form.stock_price)) }}%
+                </span>
+                <span v-else style="color: #999;">
+                  No margin (MRP = Stock Price)
+                </span>
+              </div>
             </a-form-item>
           </a-col>
           <a-col :span="8">
@@ -808,6 +819,13 @@ function calculateSellingPrice() {
   const mrp = Number(form.value.mrp) || 0
   const discount = Number(form.value.discount_percentage) || 0
   form.value.price = Number((mrp * (1 - discount / 100)).toFixed(2))
+}
+
+function calculateProfitMargin(mrp, stockPrice) {
+  if (!mrp || !stockPrice || stockPrice <= 0) return 0
+  const profit = mrp - stockPrice
+  const marginPercentage = (profit / stockPrice) * 100
+  return Number(marginPercentage.toFixed(2))
 }
 
 function showForm(product) {
