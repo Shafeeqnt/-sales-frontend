@@ -824,7 +824,7 @@ function calculateSellingPrice() {
 function calculateProfitMargin(mrp, stockPrice) {
   if (!mrp || !stockPrice || stockPrice <= 0) return 0
   const profit = mrp - stockPrice
-  const marginPercentage = (profit / stockPrice) * 100
+  const marginPercentage = (profit / mrp) * 100
   return Number(marginPercentage.toFixed(2))
 }
 
