@@ -144,15 +144,112 @@
               {{ record.payment_method?.toUpperCase() || 'N/A' }}
             </a-tag>
           </template>
+          <template v-else-if="column.key === 'actions'">
+            <a-button type="primary" size="small" @click="handleViewDetails(record)">
+              View Bill
+            </a-button>
+          </template>
         </template>
       </a-table>
     </a-card>
+
+    <!-- Bill Details Modal -->
+    <a-modal
+      v-model:open="isModalOpen"
+      title="Bill Details"
+      :footer="null"
+      width="650px"
+    >
+      <div v-if="selectedSale" style="padding: 10px 0;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+          <div>
+            <strong>Bill No:</strong> {{ selectedSale.sale_number }}<br />
+            <strong>Date:</strong> {{ formatDate(selectedSale.sale_date) }}
+          </div>
+          <div style="text-align: right;">
+            <strong>Payment Method:</strong> 
+            <a-tag :color="getPaymentMethodColor(selectedSale.payment_method)">
+              {{ selectedSale.payment_method?.toUpperCase() || 'N/A' }}
+            </a-tag>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 16px; padding: 12px; background-color: #fafafa; border-radius: 6px;">
+          <h4 style="margin-top: 0; margin-bottom: 8px;">Customer Information</h4>
+          <div v-if="selectedSale.customer_name">
+            <strong>Name:</strong> {{ selectedSale.customer_name }}<br />
+            <span v-if="selectedSale.customer_phone"><strong>Phone:</strong> {{ selectedSale.customer_phone }}<br /></span>
+            <span v-if="selectedSale.customer_email"><strong>Email:</strong> {{ selectedSale.customer_email }}</span>
+          </div>
+          <div v-else style="color: #888; font-style: italic;">
+            No customer details recorded
+          </div>
+        </div>
+
+        <h4 style="margin-bottom: 8px;">Items</h4>
+        <a-table
+          :data-source="saleItems"
+          :columns="modalColumns"
+          row-key="id"
+          :pagination="false"
+          :loading="loadingItems"
+          size="small"
+          style="margin-bottom: 16px;"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'unit_price'">
+              ₹{{ parseFloat(record.unit_price).toFixed(2) }}
+            </template>
+            <template v-if="column.key === 'total_price'">
+              ₹{{ parseFloat(record.total_price).toFixed(2) }}
+            </template>
+          </template>
+        </a-table>
+
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
+          <div style="width: 250px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span>Subtotal:</span>
+              <span>₹{{ parseFloat(selectedSale.total_amount || 0).toFixed(2) }}</span>
+            </div>
+            <div v-if="selectedSale.discount_amount > 0" style="display: flex; justify-content: space-between; margin-bottom: 4px; color: #f5222d;">
+              <span>Discount:</span>
+              <span>-₹{{ parseFloat(selectedSale.discount_amount || 0).toFixed(2) }}</span>
+            </div>
+            <div v-if="selectedSale.tax_amount > 0" style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span>Tax:</span>
+              <span>+₹{{ parseFloat(selectedSale.tax_amount || 0).toFixed(2) }}</span>
+            </div>
+            <a-divider style="margin: 8px 0;" />
+            <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 16px;">
+              <span>Grand Total:</span>
+              <span>₹{{ parseFloat(selectedSale.final_amount || 0).toFixed(2) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="selectedSale.notes" style="margin-bottom: 24px; padding: 12px; border-left: 3px solid #1890ff; background: #e6f7ff;">
+          <strong>Notes:</strong> {{ selectedSale.notes }}
+        </div>
+
+        <div style="text-align: right;">
+          <a-space>
+            <a-button @click="isModalOpen = false">Close</a-button>
+            <a-button type="primary" @click="printBillAgain">
+              🖨️ Print Bill Again
+            </a-button>
+          </a-space>
+        </div>
+      </div>
+    </a-modal>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useSalesStore } from '../stores/salesStore'
+import { useProductStore } from '../stores/productStore'
+import { supabase } from '../lib/supabase.js'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 
@@ -209,6 +306,12 @@ const columns = [
     key: 'payment_method',
     width: 120,
   },
+  {
+    title: 'Actions',
+    key: 'actions',
+    width: 120,
+    align: 'center',
+  },
 ]
 
 const formatDate = (dateString) => {
@@ -254,11 +357,369 @@ const handleRefresh = async () => {
   }
 }
 
+const productStore = useProductStore()
+const isModalOpen = ref(false)
+const selectedSale = ref(null)
+const saleItems = ref([])
+const loadingItems = ref(false)
+
+const modalColumns = [
+  { title: "Product Name", dataIndex: "product_name", key: "product_name" },
+  { title: "Product Code", dataIndex: "product_code", key: "product_code", width: 120 },
+  { title: "Qty", dataIndex: "quantity", key: "quantity", width: 80, align: 'center' },
+  { title: "Unit Price", dataIndex: "unit_price", key: "unit_price", width: 120, align: 'right' },
+  { title: "Total Price", dataIndex: "total_price", key: "total_price", width: 120, align: 'right' },
+]
+
+async function handleViewDetails(sale) {
+  selectedSale.value = sale
+  isModalOpen.value = true
+  loadingItems.value = true
+  saleItems.value = []
+
+  try {
+    const { data, error } = await supabase
+      .from('sale_items')
+      .select('*')
+      .eq('sale_id', sale.id)
+
+    if (error) throw error
+    saleItems.value = data || []
+  } catch (error) {
+    console.error('Failed to fetch sale items:', error)
+    message.error('Failed to load bill items')
+  } finally {
+    loadingItems.value = false
+  }
+}
+
+function printBillAgain() {
+  if (!selectedSale.value) return;
+  console.log('🖨️ Reprinting bill. selectedSale:', selectedSale.value);
+
+  const billDate = new Date(selectedSale.value.sale_date).toLocaleString('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  const items = saleItems.value || [];
+  const discount = Number(selectedSale.value.discount_amount) || 0;
+  const tax = Number(selectedSale.value.tax_amount) || 0;
+  const grandTotal = Number(selectedSale.value.final_amount) || 0;
+  const paymentMethod = selectedSale.value.payment_method || 'cash';
+
+  console.log('📦 Items to print:', items);
+
+  if (items.length === 0) {
+    console.error('❌ No items found for reprint!');
+    message.error('Error: No items to print. Please try again.');
+    return;
+  }
+
+  // Calculate totals
+  let totalMRP = 0;
+  let subtotalAfterDiscount = 0;
+  let productSavings = 0;
+
+  // Build items HTML and calculate savings
+  let itemsHTML = '';
+  items.forEach(item => {
+    // Find product in productStore to resolve original MRP
+    const product = productStore.products.find(p => p.id === item.product_id);
+    const mrpVal = product ? Number(product.mrp) : Number(item.unit_price);
+    
+    const itemMRP = mrpVal * Number(item.quantity);
+    const itemTotal = Number(item.unit_price) * Number(item.quantity);
+    const itemSavings = itemMRP - itemTotal;
+
+    totalMRP += itemMRP;
+    subtotalAfterDiscount += itemTotal;
+    productSavings += itemSavings;
+
+    itemsHTML += `
+      <tr>
+        <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd;">${item.product_name}</td>
+        <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: center;">${item.quantity}</td>
+        <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: right;">₹${Number(mrpVal).toFixed(2)}</td>
+        <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: right;">₹${Number(item.unit_price).toFixed(2)}</td>
+        <td style="padding: 8px 4px; border-bottom: 1px dashed #ddd; text-align: right;">₹${itemTotal.toFixed(2)}</td>
+      </tr>
+    `;
+  });
+
+  // Calculate total savings (product discounts + additional discount)
+  const totalSavings = productSavings + discount;
+
+  const printHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Bill - ${selectedSale.value.sale_number}</title>
+       <style>
+        @media print {
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+          body {
+            margin: 0;
+            padding: 0;
+          }
+        }
+        
+        body {
+          font-family: 'Courier New', monospace;
+          width: 80mm;
+          margin: 0 auto;
+          padding: 2mm;
+          font-size: 11px;
+        }
+        
+        .bill-container {
+          width: 100%;
+        }
+        
+        .header {
+          text-align: center;
+          margin-bottom: 15px;
+          border-bottom: 2px solid #000;
+          padding-bottom: 15px;
+        }
+        
+        .store-name {
+          font-size: 24px;
+          font-weight: bold;
+          margin: 0;
+        }
+        
+        .store-tagline {
+          font-size: 13px;
+          margin: 2px 0;
+          color: #666;
+        }
+        .store-location-tagline {
+          font-size: 12px;
+          margin: 2px 0;
+          color: #666;
+        }
+        
+        .bill-info {
+          margin: 15px 0;
+          font-size: 14px;
+        }
+        
+        .bill-info-row {
+          display: flex;
+          justify-content: space-between;
+          margin: 4px 0;
+        }
+        
+        .separator {
+          border-top: 1px dashed #000;
+          margin: 10px 0;
+        }
+        
+        .items-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 15px 0;
+        }
+        
+        .items-table th {
+          text-align: left;
+          padding: 8px 4px;
+          border-bottom: 2px solid #000;
+          font-weight: bold;
+          font-size: 14px;
+        }
+        
+        .items-table td {
+          padding: 8px 4px;
+          font-size: 14px;
+        }
+        
+        .totals {
+          margin-top: 15px;
+          padding-top: 15px;
+          border-top: 2px solid #000;
+        }
+        
+        .total-row {
+          display: flex;
+          justify-content: space-between;
+          margin: 6px 0;
+          font-size: 14px;
+        }
+        
+        .savings-row {
+          display: flex;
+          justify-content: space-between;
+          margin: 6px 0;
+          font-size: 14px;
+          color: #2d7c2d;
+          font-weight: 500;
+        }
+        
+        .savings-highlight {
+          background: #f0f0f0;
+          padding: 8px;
+          margin: 10px 0;
+          border-radius: 4px;
+          text-align: center;
+          font-weight: bold;
+          font-size: 15px;
+        }
+        
+        .grand-total {
+          font-weight: bold;
+          font-size: 18px;
+          padding-top: 10px;
+          border-top: 2px solid #000;
+          margin-top: 10px;
+        }
+        
+        .footer {
+          text-align: center;
+          margin-top: 20px;
+          padding-top: 15px;
+          border-top: 1px dashed #000;
+          font-size: 14px;
+        }
+        
+        .footer-note {
+          margin: 6px 0;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="bill-container">
+        <!-- Header -->
+        <div class="header">
+          <div style="font-size: 24px;">👟</div>
+          <h1 class="store-name">FootPrints</h1>
+          <div class="store-tagline">A place for genuine leather.</div>
+          <div class="store-location-tagline">Kalayapuram, Ph:9947141283</div>
+        </div>
+        
+        <!-- Bill Information -->
+        <div class="bill-info">
+          <div class="bill-info-row">
+            <span>Bill No:</span>
+            <span><strong>${selectedSale.value.sale_number}</strong></span>
+          </div>
+          <div class="bill-info-row">
+            <span>Time:</span>
+            <span>${billDate}</span>
+          </div>
+        </div>
+        
+        <div class="separator"></div>
+        
+        <!-- Items Table -->
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th style="width: 45%;">Item</th>
+              <th style="width: 10%; text-align: center;">Qty</th>
+              <th style="width: 15%; text-align: right;">MRP</th>
+              <th style="width: 15%; text-align: right;">Disc Rate</th>
+              <th style="width: 15%; text-align: right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHTML}
+          </tbody>
+        </table>
+        
+        <div class="separator"></div>
+        
+        <!-- Totals -->
+        <div class="totals">
+          <div class="total-row">
+            <span>Total MRP:</span>
+            <span>₹${Number(totalMRP).toFixed(2)}</span>
+          </div>
+          ${productSavings > 0 ? `
+          <div class="savings-row">
+            <span>Product Discounts:</span>
+            <span>-₹${Number(productSavings).toFixed(2)}</span>
+          </div>
+          ` : ''}
+          <div class="total-row">
+            <span>Subtotal:</span>
+            <span>₹${Number(subtotalAfterDiscount).toFixed(2)}</span>
+          </div>
+          ${discount > 0 ? `
+          <div class="savings-row">
+            <span>Additional Discount:</span>
+            <span>-₹${Number(discount).toFixed(2)}</span>
+          </div>
+          ` : ''}
+          ${tax > 0 ? `
+          <div class="total-row">
+            <span>Tax:</span>
+            <span>+₹${Number(tax).toFixed(2)}</span>
+          </div>
+          ` : ''}
+          
+          ${totalSavings > 0 ? `
+          <div class="savings-highlight">
+            🎉 You Saved: ₹${Number(totalSavings).toFixed(2)}
+          </div>
+          ` : ''}
+          
+          <div class="total-row grand-total">
+            <span>Grand Total:</span>
+            <span>₹${Number(grandTotal).toFixed(2)}</span>
+          </div>
+          <div class="total-row" style="margin-top: 8px;">
+            <span>Payment Method:</span>
+            <span style="text-transform: uppercase;">${paymentMethod.toUpperCase()}</span>
+          </div>
+        </div>
+        
+        <div class="separator"></div>
+        
+        <!-- Footer -->
+        <div class="footer">
+          <div class="footer-note">Thank you for your purchase!</div>
+          <div class="footer-note">Visit again 🙏</div>
+          <div class="footer-note" style="margin-top: 8px; font-size: 12px;">
+            Powered by FootPrints POS
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  // Open print window
+  const printWindow = window.open('', '_blank', 'width=1200,height=800');
+  printWindow.document.write(printHTML);
+  printWindow.document.close();
+
+  // Wait for content to load, then print
+  setTimeout(() => {
+    printWindow.print();
+  }, 500);
+}
+
 onMounted(async () => {
   try {
     await salesStore.fetchSales()
   } catch (error) {
     message.error('Failed to load sales data')
+  }
+  try {
+    if (productStore.products.length === 0) {
+      await productStore.fetchProducts()
+    }
+  } catch (error) {
+    console.error('Failed to load products:', error)
   }
 })
 </script>
